@@ -1,0 +1,12 @@
+backlog:
+  - id: 1
+    title: "PLACEHOLDER: Define product concept"
+    status: "candidate"  # candidate | ready | in_sprint | done
+    priority: 1
+    size: "S"            # S | M | L
+    owner: "PO"          # PO | SAD | SASD | QA | MIBS
+    story: ""
+    acceptance_criteria: []
+    non_goals: []
+    dependencies: []
+    risks: []

@@ -1,0 +1,11 @@
+# .NET
+bin/
+obj/
+
+# local secrets
+.env
+*.secrets.json
+
+# generated run logs (we will commit selectively later)
+state/runs/*
+!state/runs/.gitkeep

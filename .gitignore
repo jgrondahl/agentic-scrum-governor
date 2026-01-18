@@ -1,6 +1,7 @@
 # .NET
 bin/
 obj/
+.vs/
 
 # local secrets
 .env

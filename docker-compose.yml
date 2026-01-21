@@ -1,0 +1,11 @@
+services:
+  governor:
+    build:
+      context: .
+    image: agentic-scrum-governor:local
+    working_dir: /work
+    volumes:
+      - type: bind
+        source: .
+        target: /work
+    command: ["init"]

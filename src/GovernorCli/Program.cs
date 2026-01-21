@@ -132,6 +132,11 @@ internal static class Program
             {
                 AnsiConsole.MarkupLine("[red]FAIL[/] Could not parse state/backlog.yaml");
             }
+            else if (exitCode == 5)
+            {
+                AnsiConsole.MarkupLine("[red]FAIL[/] Definition of Ready gate failed for this item.");
+                AnsiConsole.MarkupLine("See the latest run folder under [blue]state/runs/[/] for details.");
+            }
             else
             {
                 AnsiConsole.MarkupLine($"[red]FAIL[/] Unexpected error (exit code {exitCode}).");

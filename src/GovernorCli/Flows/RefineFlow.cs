@@ -32,7 +32,52 @@ public static class RefineFlow
         var item = backlog.Backlog.FirstOrDefault(x => x.Id == itemId);
         if (item is null)
             return 3;
+        var dorErrors = Validation.DefinitionOfReady.Validate(item);
+        if (dorErrors.Count > 0)
+        {
+            // Write a small run folder for traceability even on failure (optional but recommended)
+            var utcNow = DateTimeOffset.UtcNow;
+            var currRunId = $"{utcNow:yyyyMMdd_HHmmss}_refine_item-{itemId}_DOR_FAIL";
+            var currRunsRoot = Path.Combine(workdir, "state", "runs");
+            var currRunDir = RunWriter.CreateRunFolder(currRunsRoot, currRunId);
 
+            var currRecord = new RunRecord
+            {
+                RunId = currRunId,
+                Flow = "refine",
+                CreatedAtUtc = utcNow.ToString("O"),
+                Workdir = workdir,
+                ItemId = item.Id,
+                ItemTitle = item.Title,
+                Status = "dor_failed"
+            };
+
+            RunWriter.WriteJson(currRunDir, "run.json", currRecord);
+
+            var currMd = $"""
+            # Refine Run (DoR Failed)
+
+            - RunId: {currRunId}
+            - CreatedAtUtc: {currRecord.CreatedAtUtc}
+            - Flow: refine
+            - Workdir: {workdir}
+
+            ## Backlog Item
+            - Id: {item.Id}
+            - Title: {item.Title}
+            - Status: {item.Status}
+            - Priority: {item.Priority}
+            - Size: {item.Size}
+            - Owner: {item.Owner}
+
+            ## DoR Errors
+            {string.Join(Environment.NewLine, dorErrors.Select(e => $"- {e}"))}
+            """;
+
+            RunWriter.WriteText(currRunDir, "refine.md", currMd);
+
+            return 5;
+        }
         // Run id: safe for Windows paths (no ':' characters)
         var utc = DateTimeOffset.UtcNow;
         var runId = $"{utc:yyyyMMdd_HHmmss}_refine_item-{itemId}";

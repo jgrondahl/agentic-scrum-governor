@@ -112,13 +112,34 @@ internal static class Program
             var verbose = parseResult.GetValue(verboseOption);
             var itemId = parseResult.GetValue(itemIdOption);
 
-            if (verbose)
-                AnsiConsole.MarkupLine($"[grey]Workdir:[/] {Markup.Escape(workdir)}");
+            var exitCode = Flows.RefineFlow.Run(workdir, itemId, verbose);
 
-            AnsiConsole.MarkupLine($"Refine: item [blue]{itemId}[/]");
-            AnsiConsole.MarkupLine("[yellow]Not implemented[/]");
-            return 0;
+            // Minimal user-facing output
+            if (exitCode == 0)
+            {
+                AnsiConsole.MarkupLine($"Refine: item [blue]{itemId}[/]");
+                AnsiConsole.MarkupLine("[green]OK[/] Run artifacts written under state/runs/.");
+            }
+            else if (exitCode == 2)
+            {
+                AnsiConsole.MarkupLine("[red]FAIL[/] Repo layout invalid. Run `init` for details.");
+            }
+            else if (exitCode == 3)
+            {
+                AnsiConsole.MarkupLine($"[red]FAIL[/] Backlog item not found: {itemId}");
+            }
+            else if (exitCode == 4)
+            {
+                AnsiConsole.MarkupLine("[red]FAIL[/] Could not parse state/backlog.yaml");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[red]FAIL[/] Unexpected error (exit code {exitCode}).");
+            }
+
+            return exitCode;
         });
+
 
         return cmd;
     }

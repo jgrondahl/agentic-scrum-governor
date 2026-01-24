@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qa.schema.json",
+  "type": "object",
+  "required": ["risks", "assumptions", "recommendations", "testOracles", "edgeCases", "dodChecklist"],
+  "properties": {
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "recommendations": { "type": "array", "items": { "type": "string" } },
+    "testOracles": { "type": "array", "items": { "type": "string" } },
+    "edgeCases": { "type": "array", "items": { "type": "string" } },
+    "dodChecklist": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

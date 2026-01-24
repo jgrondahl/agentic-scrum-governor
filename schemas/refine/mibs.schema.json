@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mibs.schema.json",
+  "type": "object",
+  "required": ["risks", "assumptions", "recommendations", "icp", "positioning", "pricingHypothesis", "scopeTraps"],
+  "properties": {
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "recommendations": { "type": "array", "items": { "type": "string" } },
+    "icp": { "type": "string" },
+    "positioning": { "type": "string" },
+    "pricingHypothesis": { "type": "string" },
+    "scopeTraps": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

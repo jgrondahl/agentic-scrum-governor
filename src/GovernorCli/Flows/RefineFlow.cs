@@ -4,6 +4,7 @@ using GovernorCli.Prompts;
 using GovernorCli.Runs;
 using GovernorCli.State;
 using GovernorCli.Validation;
+using System.Text.Json;
 
 namespace GovernorCli.Flows;
 
@@ -15,15 +16,16 @@ public static class RefineFlow
     // 3 item not found
     // 4 backlog parse error
     // 5 DoR gate failed
-    // 6 prompt load error (new)
+    // 6 prompt load error
+    // 7 contract validation failed (after retry)
     public static int Run(string workdir, int itemId, bool verbose)
     {
-        // Validate layout first
+        // 1) Validate layout
         var problems = RepoChecks.ValidateLayout(workdir);
         if (problems.Count > 0)
             return 2;
 
-        // Load backlog
+        // 2) Load backlog
         var backlogPath = Path.Combine(workdir, "state", "backlog.yaml");
         BacklogFile backlog;
         try
@@ -35,11 +37,12 @@ public static class RefineFlow
             return 4;
         }
 
+        // 3) Find item
         var item = backlog.Backlog.FirstOrDefault(x => x.Id == itemId);
         if (item is null)
             return 3;
 
-        // DoR gate
+        // 4) DoR gate
         var dorErrors = DefinitionOfReady.Validate(item);
         if (dorErrors.Count > 0)
         {
@@ -47,14 +50,12 @@ public static class RefineFlow
             return 5;
         }
 
-        // Run id: safe for Windows paths (no ':' characters)
+        // 5) Create run folder + base artifacts
         var utc = DateTimeOffset.UtcNow;
         var runId = $"{utc:yyyyMMdd_HHmmss}_refine_item-{itemId}";
-
         var runsRoot = Path.Combine(workdir, "state", "runs");
         var runDir = RunWriter.CreateRunFolder(runsRoot, runId);
 
-        // Run record
         var record = new RunRecord
         {
             RunId = runId,
@@ -67,11 +68,9 @@ public static class RefineFlow
         };
 
         RunWriter.WriteJson(runDir, "run.json", record);
-
-        // Base refine artifact for humans
         RunWriter.WriteText(runDir, "refine.md", BuildRefineMarkdown(runId, record, item));
 
-        // ---- NEW: persona turns (stub provider) ----
+        // 6) Load prompts
         string flowPrompt;
         try
         {
@@ -79,21 +78,23 @@ public static class RefineFlow
         }
         catch
         {
-            // If prompts missing, we want this to be a deterministic failure.
-            // Still keep the run folder for traceability.
             RunWriter.WriteText(runDir, "summary.md", "# Refine Summary\n\nFAIL: Could not load prompts/flows/refine.md");
+            record.Status = "prompt_load_failed";
+            RunWriter.WriteJson(runDir, "run.json", record);
             return 6;
         }
 
-        // Minimal input context for now (we tighten later)
+        // 7) Prepare input context
         var inputContext = BuildInputContext(item);
 
+        // 8) Provider (stub for now)
         ILanguageModelProvider provider = new StubLanguageModelProvider();
         var turnsDir = TurnWriter.EnsureTurnsDir(runDir);
 
         var turnOutputs = new List<(string PersonaId, string OutputText)>();
         var ct = CancellationToken.None;
 
+        // 9) Execute turns with contract validation + one retry
         var turnIndex = 1;
         foreach (var persona in PersonaCatalog.RefinementOrder)
         {
@@ -104,7 +105,6 @@ public static class RefineFlow
             }
             catch
             {
-                // Log the failure as a turn artifact (still auditable)
                 var failPayload = new
                 {
                     turn = turnIndex,
@@ -116,19 +116,67 @@ public static class RefineFlow
                 };
 
                 TurnWriter.WriteTurn(turnsDir, turnIndex, persona.Id.ToString(), failPayload);
+
                 RunWriter.WriteText(runDir, "summary.md",
                     $"# Refine Summary\n\nFAIL: Missing persona prompt file prompts/personas/{persona.PromptFileName}");
+
+                record.Status = "prompt_load_failed";
+                RunWriter.WriteJson(runDir, "run.json", record);
                 return 6;
             }
 
-            var request = new LanguageModelRequest(
-                PersonaId: persona.Id.ToString(),
-                PersonaPrompt: personaPrompt,
-                FlowPrompt: flowPrompt,
-                InputContext: inputContext
-            );
+            // Two-attempt loop (attempt 1 + retry 1)
+            var attempts = new List<object>();
+            JsonElement? finalParsed = null;
+            List<string>? finalErrors = null;
 
-            var response = provider.GenerateAsync(request, ct).GetAwaiter().GetResult();
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                var contractInstruction = attempt == 1
+                    ? "Output MUST be valid JSON and match the role contract fields. Do not include markdown."
+                    : $"Your previous output failed contract validation. Output ONLY valid JSON with required fields for persona {persona.Id}. No markdown, no prose outside JSON.";
+
+                var request = new LanguageModelRequest(
+                    PersonaId: persona.Id.ToString(),
+                    PersonaPrompt: personaPrompt,
+                    FlowPrompt: flowPrompt + "\n\n" + contractInstruction,
+                    InputContext: inputContext
+                );
+
+                var response = provider.GenerateAsync(request, ct).GetAwaiter().GetResult();
+
+                // Parse + validate
+                List<string> errors;
+                JsonElement? parsed = null;
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(response.OutputText);
+                    parsed = doc.RootElement.Clone();
+                    errors = RefineContracts.ValidatePersonaOutput(persona.Id.ToString(), parsed.Value);
+                }
+                catch (Exception ex)
+                {
+                    errors = new List<string> { $"Invalid JSON: {ex.Message}" };
+                }
+
+                attempts.Add(new
+                {
+                    attempt,
+                    provider = provider.Name,
+                    createdAtUtc = utc.ToString("O"),
+                    outputText = response.OutputText,
+                    validationErrors = errors
+                });
+
+                finalParsed = parsed;
+                finalErrors = errors;
+
+                if (errors.Count == 0 && parsed is not null)
+                    break;
+            }
+
+            var succeeded = finalErrors is not null && finalErrors.Count == 0;
 
             var payload = new
             {
@@ -140,26 +188,44 @@ public static class RefineFlow
                 request = new
                 {
                     flowPromptFile = "prompts/flows/refine.md",
-                    personaPromptFile = $"prompts/personas/{persona.PromptFileName}"
+                    personaPromptFile = $"prompts/personas/{persona.PromptFileName}",
+                    contractSchemaFile = $"schemas/refine/{persona.Id.ToString().ToLowerInvariant()}.schema.json"
                 },
-                response = new
+                attempts,
+                result = new
                 {
-                    text = response.OutputText,
-                    metadata = response.Metadata
+                    succeeded,
+                    parsed = finalParsed,
+                    validationErrors = finalErrors
                 }
             };
 
             TurnWriter.WriteTurn(turnsDir, turnIndex, persona.Id.ToString(), payload);
-            turnOutputs.Add((persona.Id.ToString(), response.OutputText));
+
+            if (!succeeded)
+            {
+                RunWriter.WriteText(runDir, "summary.md",
+                    $"# Refine Summary\n\nFAIL: Contract validation failed for persona {persona.Id} on turn {turnIndex}.\n\n" +
+                    string.Join(Environment.NewLine, finalErrors ?? new List<string> { "Unknown validation failure." }));
+
+                record.Status = "contract_failed";
+                RunWriter.WriteJson(runDir, "run.json", record);
+                return 7;
+            }
+
+            // Add pretty JSON into summary aggregation
+            turnOutputs.Add((
+                persona.Id.ToString(),
+                JsonSerializer.Serialize(finalParsed, new JsonSerializerOptions { WriteIndented = true })
+            ));
 
             turnIndex++;
         }
 
-        // Summary for humans (stub outputs)
-        var summary = BuildSummaryMarkdown(runId, provider.Name, turnOutputs);
-        RunWriter.WriteText(runDir, "summary.md", summary);
+        // 10) Write summary
+        RunWriter.WriteText(runDir, "summary.md", BuildSummaryMarkdown(runId, provider.Name, turnOutputs));
 
-        // Mark run record status as completed (optional update)
+        // 11) Mark run complete
         record.Status = "completed";
         RunWriter.WriteJson(runDir, "run.json", record);
 

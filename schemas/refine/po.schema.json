@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "po.schema.json",
+  "type": "object",
+  "required": ["risks", "assumptions", "recommendations", "acceptanceCriteriaUpdates", "nonGoalsUpdates", "prioritySuggestion"],
+  "properties": {
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "recommendations": { "type": "array", "items": { "type": "string" } },
+    "acceptanceCriteriaUpdates": { "type": "array", "items": { "type": "string" } },
+    "nonGoalsUpdates": { "type": "array", "items": { "type": "string" } },
+    "prioritySuggestion": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": true
+}

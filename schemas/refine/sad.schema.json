@@ -11,5 +11,5 @@
     "interfaceNotes": { "type": "array", "items": { "type": "string" } },
     "nfrs": { "type": "array", "items": { "type": "string" } }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

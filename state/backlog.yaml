@@ -1,12 +1,64 @@
 backlog:
-  - id: 1
-    title: "PLACEHOLDER: Define product concept"
-    status: "candidate"  # candidate | ready | in_sprint | done
-    priority: 1
-    size: "S"            # S | M | L
-    owner: "PO"          # PO | SAD | SASD | QA | MIBS
-    story: ""
-    acceptance_criteria: []
-    non_goals: []
-    dependencies: []
-    risks: []
+- id: 1
+  title: 'PLACEHOLDER: Define product concept'
+  status: ready
+  priority: 1
+  size: S
+  owner: PO
+  story: ''
+  acceptance_criteria:
+  - Define product concept documentation completed and reviewed by stakeholders.
+  - Consensus achieved on product direction and high-level goals.
+  - Ensure clear criteria for defining consensus among stakeholders.
+  - Product concept documentation shared in a common repository accessible to all stakeholders.
+  - Criteria for consensus clearly defined and agreed upon before review commencement.
+  - Ensure documentation is version-controlled in the repository.
+  - Categorize feedback and establish clear resolution paths for differing opinions.
+  non_goals:
+  - This task does not include detailed feature specifications.
+  - This task will not cover user interface design elements.
+  - Clarify that technical specifications are also excluded from this task.
+  - Reinforce exclusion of market analysis and competitor research.
+  - Clarify that no technical or architectural decisions are included.
+  - Exclude API design considerations explicitly.
+  - Clarify exclusion of any user persona development tasks.
+  dependencies: []
+  risks: []
+- id: 2
+  title: My music tool idea
+  status: candidate
+  priority: 1
+  size: S
+  owner: PO
+  story: A desktop utility that...
+  acceptance_criteria: []
+  non_goals: []
+  dependencies: []
+  risks: []
+- id: 3
+  title: My music tool idea
+  status: candidate
+  priority: 1
+  size: S
+  owner: PO
+  story: A desktop utility that...
+  acceptance_criteria: []
+  non_goals: []
+  dependencies: []
+  risks: []
+- id: 4
+  title: Reference Track Comparison Tool
+  status: candidate
+  priority: 2
+  size: S
+  owner: PO
+  story: Build a production-ready desktop tool that allows music producers to upload a reference track by a favorite producer alongside their own track and compare production quality, kick–snare relationship, and overall mix balance. The tool should provide objective analysis and actionable feedback, not just visualizations.
+  acceptance_criteria:
+  - Users can upload both their track and a reference track for comparison.
+  - The tool provides objective feedback on production quality, kick–snare relationship, and overall mix balance.
+  - Feedback is actionable and can include suggestions for improvements.
+  non_goals:
+  - The tool will not perform automatic adjustments to user tracks.
+  - The tool will not store any uploaded tracks permanently.
+  dependencies: []
+  risks: []

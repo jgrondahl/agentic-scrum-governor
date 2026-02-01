@@ -8,4 +8,11 @@ services:
       - type: bind
         source: .
         target: /work
+    env_file:
+      - .env
+    environment:
+      GOVERNOR_WORKDIR: /work
+      GOVERNOR_LM_PROVIDER: ${GOVERNOR_LM_PROVIDER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
     command: ["init"]

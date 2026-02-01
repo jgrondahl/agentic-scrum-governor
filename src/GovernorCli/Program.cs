@@ -1,6 +1,5 @@
-﻿using System.CommandLine;
-using System.CommandLine.Parsing;
-using Spectre.Console;
+﻿using Spectre.Console;
+using System.CommandLine;
 
 namespace GovernorCli;
 
@@ -37,6 +36,7 @@ internal static class Program
         root.Subcommands.Add(BuildRefineCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildPlanCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildReviewCommand(workdirOption, verboseOption));
+        root.Subcommands.Add(BuildIntakeCommand(workdirOption, verboseOption));
 
         // ---- Invoke ----
         return root.Parse(args).Invoke();
@@ -103,16 +103,23 @@ internal static class Program
             Required = true
         };
 
+        var approveOption = new Option<bool>(name: "--approve")
+        {
+            Description = "Approve and apply the proposed patch to state/backlog.yaml."
+        };
+
         var cmd = new Command("refine", "Run refinement flow for a backlog item (skeleton).");
         cmd.Options.Add(itemIdOption);
+        cmd.Options.Add(approveOption);
 
         cmd.SetAction(parseResult =>
         {
             var workdir = ResolveWorkdir(parseResult, workdirOption);
             var verbose = parseResult.GetValue(verboseOption);
             var itemId = parseResult.GetValue(itemIdOption);
+            var approve = parseResult.GetValue(approveOption);
 
-            var exitCode = Flows.RefineFlow.Run(workdir, itemId, verbose);
+            var exitCode = Flows.RefineFlow.Run(workdir, itemId, verbose, approve);
 
             // Minimal user-facing output
             if (exitCode == 0)
@@ -191,6 +198,49 @@ internal static class Program
             AnsiConsole.MarkupLine($"Review: item [blue]{itemId}[/]");
             AnsiConsole.MarkupLine("[yellow]Not implemented[/]");
             return 0;
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildIntakeCommand(Option<string> workdirOption, Option<bool> verboseOption)
+    {
+        var titleOption = new Option<string>("--title")
+        {
+            Description = "Title for the new backlog item.",
+            Required = true
+        };
+
+        var storyOption = new Option<string>("--story")
+        {
+            Description = "Story/description for the new backlog item.",
+            Required = true
+        };
+
+        var cmd = new Command("intake", "Create a new backlog item from a raw idea (deterministic).");
+        cmd.Options.Add(titleOption);
+        cmd.Options.Add(storyOption);
+
+        cmd.SetAction(parseResult =>
+        {
+            var workdir = ResolveWorkdir(parseResult, workdirOption);
+            var verbose = parseResult.GetValue(verboseOption);
+
+            var title = parseResult.GetValue(titleOption) ?? "";
+            var story = parseResult.GetValue(storyOption) ?? "";
+
+            var exitCode = Flows.IntakeFlow.Run(workdir, title, story, verbose);
+
+            if (exitCode == 0)
+                AnsiConsole.MarkupLine("[green]OK[/] Intake completed. Backlog updated.");
+            else if (exitCode == 2)
+                AnsiConsole.MarkupLine("[red]FAIL[/] Repo layout invalid. Run `init` for details.");
+            else if (exitCode == 4)
+                AnsiConsole.MarkupLine("[red]FAIL[/] Could not parse state/backlog.yaml");
+            else
+                AnsiConsole.MarkupLine($"[red]FAIL[/] Unexpected error (exit code {exitCode}).");
+
+            return exitCode;
         });
 
         return cmd;

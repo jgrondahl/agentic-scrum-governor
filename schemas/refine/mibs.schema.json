@@ -12,5 +12,5 @@
     "pricingHypothesis": { "type": "string" },
     "scopeTraps": { "type": "array", "items": { "type": "string" } }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

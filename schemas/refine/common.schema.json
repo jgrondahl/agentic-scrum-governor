@@ -8,5 +8,5 @@
     "assumptions": { "type": "array", "items": { "type": "string" } },
     "recommendations": { "type": "array", "items": { "type": "string" } }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

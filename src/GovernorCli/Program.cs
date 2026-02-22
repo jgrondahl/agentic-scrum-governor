@@ -37,6 +37,7 @@ internal static class Program
         root.Subcommands.Add(BuildPlanCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildReviewCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildIntakeCommand(workdirOption, verboseOption));
+        root.Subcommands.Add(BuildRefineTechCommand(workdirOption, verboseOption));
 
         // ---- Invoke ----
         return root.Parse(args).Invoke();
@@ -246,6 +247,55 @@ internal static class Program
         return cmd;
     }
 
+    private static Command BuildRefineTechCommand(Option<string> workdirOption, Option<bool> verboseOption)
+    {
+        var itemIdOption = new Option<int>(name: "--item")
+        {
+            Description = "Backlog item id to technically refine.",
+            Required = true
+        };
+
+        var approveOption = new Option<bool>(name: "--approve")
+        {
+            Description = "Approve and apply the proposed tech-refinement patch to state/backlog.yaml."
+        };
+
+        var cmd = new Command("refine-tech", "Run technical refinement & readiness flow for a backlog item (skeleton).");
+        cmd.Options.Add(itemIdOption);
+        cmd.Options.Add(approveOption);
+
+        cmd.SetAction(parseResult =>
+        {
+            var workdir = ResolveWorkdir(parseResult, workdirOption);
+            var verbose = parseResult.GetValue(verboseOption);
+            var itemId = parseResult.GetValue(itemIdOption);
+            var approve = parseResult.GetValue(approveOption);
+
+            var exitCode = Flows.RefineTechFlow.Run(workdir, itemId, verbose, approve);
+
+            if (exitCode == 0)
+            {
+                AnsiConsole.MarkupLine($"Refine-Tech: item [blue]{itemId}[/]");
+                AnsiConsole.MarkupLine(approve
+                    ? "[green]OK[/] Approved. Backlog updated and decision logged."
+                    : "[green]OK[/] Preview written (no backlog changes).");
+                AnsiConsole.MarkupLine("[grey]See state/runs/ for artifacts.[/]");
+            }
+            else if (exitCode == 2)
+                AnsiConsole.MarkupLine("[red]FAIL[/] Repo layout invalid. Run `init` for details.");
+            else if (exitCode == 3)
+                AnsiConsole.MarkupLine($"[red]FAIL[/] Backlog item not found: {itemId}");
+            else if (exitCode == 4)
+                AnsiConsole.MarkupLine("[red]FAIL[/] Could not parse state/backlog.yaml");
+            else
+                AnsiConsole.MarkupLine($"[red]FAIL[/] Unexpected error (exit code {exitCode}).");
+
+            return exitCode;
+        });
+
+        return cmd;
+    }
+
     private static string ResolveWorkdir(ParseResult parseResult, Option<string> workdirOption)
     {
         var workdir = parseResult.GetValue(workdirOption) ?? Directory.GetCurrentDirectory();
@@ -265,11 +315,14 @@ internal static class RepoChecks
         RequireDir(workdir, "prompts", problems);
         RequireDir(workdir, Path.Combine("prompts", "personas"), problems);
         RequireDir(workdir, Path.Combine("prompts", "flows"), problems);
+        RequireDir(workdir, Path.Combine("state", "decisions"), problems);
 
         // Required state files
         RequireFile(workdir, Path.Combine("state", "team-board.md"), problems);
         RequireFile(workdir, Path.Combine("state", "backlog.yaml"), problems);
         RequireFile(workdir, Path.Combine("state", "risks.md"), problems);
+        RequireFile(workdir, Path.Combine("state", "decisions", "decision-log.md"), problems);
+
 
         // Persona prompts
         RequireFile(workdir, Path.Combine("prompts", "personas", "product-owner.md"), problems);

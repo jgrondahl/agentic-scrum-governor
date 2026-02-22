@@ -5,6 +5,26 @@ backlog:
   priority: 1
   size: S
   owner: PO
+  estimate:
+    id: EST-<runId>-<itemId>
+    story_points: 8
+    scale: fibonacci
+    confidence: medium
+    risk_level: high
+    complexity_drivers:
+    - FFT-based analysis accuracy
+    - Transient detection under varied BPM
+    assumptions:
+    - Offline processing only for MVP
+    dependencies:
+    - libsndfile
+    non_goals:
+    - Real-time plugin support
+    notes: >
+      Estimation assumes batch processing and no DAW integration.
+    created_at_utc: 2026-02-01T21:25:57Z
+    created_from_run_id: <runId>
+  technical_notes_ref: 
   story: ''
   acceptance_criteria:
   - Define product concept documentation completed and reviewed by stakeholders.
@@ -30,6 +50,26 @@ backlog:
   priority: 1
   size: S
   owner: PO
+  estimate:
+    id: EST-<runId>-<itemId>
+    story_points: 8
+    scale: fibonacci
+    confidence: medium
+    risk_level: high
+    complexity_drivers:
+    - FFT-based analysis accuracy
+    - Transient detection under varied BPM
+    assumptions:
+    - Offline processing only for MVP
+    dependencies:
+    - libsndfile
+    non_goals:
+    - Real-time plugin support
+    notes: >
+      Estimation assumes batch processing and no DAW integration.
+    created_at_utc: 2026-02-01T21:25:57Z
+    created_from_run_id: <runId>
+  technical_notes_ref: 
   story: A desktop utility that...
   acceptance_criteria: []
   non_goals: []
@@ -41,6 +81,26 @@ backlog:
   priority: 1
   size: S
   owner: PO
+  estimate:
+    id: EST-<runId>-<itemId>
+    story_points: 8
+    scale: fibonacci
+    confidence: medium
+    risk_level: high
+    complexity_drivers:
+    - FFT-based analysis accuracy
+    - Transient detection under varied BPM
+    assumptions:
+    - Offline processing only for MVP
+    dependencies:
+    - libsndfile
+    non_goals:
+    - Real-time plugin support
+    notes: >
+      Estimation assumes batch processing and no DAW integration.
+    created_at_utc: 2026-02-01T21:25:57Z
+    created_from_run_id: <runId>
+  technical_notes_ref: 
   story: A desktop utility that...
   acceptance_criteria: []
   non_goals: []
@@ -48,10 +108,26 @@ backlog:
   risks: []
 - id: 4
   title: Reference Track Comparison Tool
-  status: candidate
+  status: ready_for_dev
   priority: 2
   size: S
   owner: PO
+  estimate:
+    id: EST-20260222_031555_refine-tech_item-4-4
+    story_points: 5
+    scale: fibonacci
+    confidence: medium
+    risk_level: medium
+    complexity_drivers:
+    - 'Placeholder: replace with real drivers during TRR.'
+    assumptions:
+    - 'Placeholder: list assumptions during TRR.'
+    dependencies: []
+    non_goals: []
+    notes: Placeholder estimate produced by refine-tech skeleton.
+    created_at_utc: 2026-02-22T03:15:55.4454774+00:00
+    created_from_run_id: 20260222_031555_refine-tech_item-4
+  technical_notes_ref: runs/20260222_031555_refine-tech_item-4/
   story: Build a production-ready desktop tool that allows music producers to upload a reference track by a favorite producer alongside their own track and compare production quality, kick–snare relationship, and overall mix balance. The tool should provide objective analysis and actionable feedback, not just visualizations.
   acceptance_criteria:
   - Users can upload both their track and a reference track for comparison.

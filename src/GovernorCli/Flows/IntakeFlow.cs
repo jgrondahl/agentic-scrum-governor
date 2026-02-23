@@ -41,8 +41,8 @@ public static class IntakeFlow
             Size = "S",
             Owner = "PO",
             Story = story.Trim(),
-            Acceptance_Criteria = new List<string>(),
-            Non_Goals = new List<string>(),
+            AcceptanceCriteria = new List<string>(),
+            NonGoals = new List<string>(),
             Dependencies = new List<string>(),
             Risks = new List<string>()
         };

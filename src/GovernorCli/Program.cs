@@ -1,5 +1,9 @@
-﻿using Spectre.Console;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 using System.CommandLine;
+using GovernorCli.Application.Stores;
+using GovernorCli.Application.UseCases;
+using GovernorCli.Infrastructure.Stores;
 
 namespace GovernorCli;
 
@@ -7,6 +11,23 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
+        // Build DI container (once at startup)
+        var services = new ServiceCollection();
+        services.AddSingleton<IBacklogStore, BacklogStore>();
+        services.AddSingleton<IRunArtifactStore, RunArtifactStore>();
+        services.AddSingleton<IDecisionStore, DecisionStore>();
+        services.AddSingleton<IEpicStore, EpicStore>();
+        services.AddSingleton<IWorkspaceStore, WorkspaceStore>();
+        services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<IAppDeployer, AppDeployer>();
+        services.AddSingleton<RefineTechUseCase>();
+        services.AddSingleton<Flows.RefineTechFlow>();
+        services.AddSingleton<DeliverUseCase>();
+        services.AddSingleton<IDeliverUseCase>(sp => sp.GetRequiredService<DeliverUseCase>());
+        services.AddSingleton<Flows.DeliverFlow>();
+
+        var provider = services.BuildServiceProvider();
+
         // ---- Global options (Recursive so they apply to subcommands) ----
         var workdirOption = new Option<string>(
             name: "--workdir",
@@ -37,7 +58,8 @@ internal static class Program
         root.Subcommands.Add(BuildPlanCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildReviewCommand(workdirOption, verboseOption));
         root.Subcommands.Add(BuildIntakeCommand(workdirOption, verboseOption));
-        root.Subcommands.Add(BuildRefineTechCommand(workdirOption, verboseOption));
+        root.Subcommands.Add(BuildRefineTechCommand(provider, workdirOption, verboseOption));
+        root.Subcommands.Add(BuildDeliverCommand(provider, workdirOption, verboseOption));
 
         // ---- Invoke ----
         return root.Parse(args).Invoke();
@@ -58,6 +80,16 @@ internal static class Program
                 AnsiConsole.MarkupLine($"[grey]Workdir:[/] {Markup.Escape(workdir)}");
             }
 
+            // Create missing directories
+            var createdDirs = RepoChecks.EnsureDirectoriesExist(workdir);
+            if (createdDirs.Count > 0)
+            {
+                AnsiConsole.MarkupLine("[green]✓[/] Created missing directories:");
+                foreach (var dir in createdDirs)
+                    AnsiConsole.MarkupLine($"  - [blue]{Markup.Escape(dir)}[/]");
+            }
+
+            // Validate layout (check for missing files)
             var problems = RepoChecks.ValidateLayout(workdir);
             if (problems.Count == 0)
             {
@@ -65,7 +97,7 @@ internal static class Program
                 return 0;
             }
 
-            AnsiConsole.MarkupLine("[red]FAIL[/] Repo layout invalid:");
+            AnsiConsole.MarkupLine("[red]FAIL[/] Missing required files:");
             foreach (var p in problems)
                 AnsiConsole.MarkupLine($"  - [red]{Markup.Escape(p)}[/]");
 
@@ -247,7 +279,7 @@ internal static class Program
         return cmd;
     }
 
-    private static Command BuildRefineTechCommand(Option<string> workdirOption, Option<bool> verboseOption)
+    private static Command BuildRefineTechCommand(IServiceProvider provider, Option<string> workdirOption, Option<bool> verboseOption)
     {
         var itemIdOption = new Option<int>(name: "--item")
         {
@@ -260,7 +292,7 @@ internal static class Program
             Description = "Approve and apply the proposed tech-refinement patch to state/backlog.yaml."
         };
 
-        var cmd = new Command("refine-tech", "Run technical refinement & readiness flow for a backlog item (skeleton).");
+        var cmd = new Command("refine-tech", "Run technical refinement & readiness flow for a backlog item.");
         cmd.Options.Add(itemIdOption);
         cmd.Options.Add(approveOption);
 
@@ -271,26 +303,91 @@ internal static class Program
             var itemId = parseResult.GetValue(itemIdOption);
             var approve = parseResult.GetValue(approveOption);
 
-            var exitCode = Flows.RefineTechFlow.Run(workdir, itemId, verbose, approve);
+            // Resolve flow from DI container
+            var flow = provider.GetRequiredService<Flows.RefineTechFlow>();
+            var exitCode = flow.Execute(workdir, itemId, verbose, approve);
 
-            if (exitCode == 0)
+            if (exitCode == Domain.Enums.FlowExitCode.Success)
             {
                 AnsiConsole.MarkupLine($"Refine-Tech: item [blue]{itemId}[/]");
                 AnsiConsole.MarkupLine(approve
-                    ? "[green]OK[/] Approved. Backlog updated and decision logged."
-                    : "[green]OK[/] Preview written (no backlog changes).");
+                    ? "[green]✓[/] Approved. Backlog updated and decision logged."
+                    : "[green]✓[/] Preview written (no backlog changes).");
                 AnsiConsole.MarkupLine("[grey]See state/runs/ for artifacts.[/]");
             }
-            else if (exitCode == 2)
-                AnsiConsole.MarkupLine("[red]FAIL[/] Repo layout invalid. Run `init` for details.");
-            else if (exitCode == 3)
-                AnsiConsole.MarkupLine($"[red]FAIL[/] Backlog item not found: {itemId}");
-            else if (exitCode == 4)
-                AnsiConsole.MarkupLine("[red]FAIL[/] Could not parse state/backlog.yaml");
+            else if (exitCode == Domain.Enums.FlowExitCode.InvalidRepoLayout)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Repo layout invalid. Run `init` for details.");
+            else if (exitCode == Domain.Enums.FlowExitCode.ItemNotFound)
+                AnsiConsole.MarkupLine($"[red]✗ FAIL[/] Backlog item not found: {itemId}");
+            else if (exitCode == Domain.Enums.FlowExitCode.BacklogParseError)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Could not parse state/backlog.yaml");
+            else if (exitCode == Domain.Enums.FlowExitCode.ApplyFailed)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Failed to apply patch.");
             else
-                AnsiConsole.MarkupLine($"[red]FAIL[/] Unexpected error (exit code {exitCode}).");
+                AnsiConsole.MarkupLine($"[red]✗ FAIL[/] Unexpected error (exit code {(int)exitCode}).");
 
-            return exitCode;
+            // ✅ Return int (not Environment.Exit) - lets System.CommandLine handle propagation
+            return (int)exitCode;
+        });
+
+        return cmd;
+
+    }
+
+    private static Command BuildDeliverCommand(IServiceProvider provider, Option<string> workdirOption, Option<bool> verboseOption)
+    {
+        var itemIdOption = new Option<int>(name: "--item")
+        {
+            Description = "Backlog item id to deliver.",
+            Required = true
+        };
+
+        var approveOption = new Option<bool>(name: "--approve")
+        {
+            Description = "Approve and deploy the candidate implementation to /apps/<appId>/."
+        };
+
+        var cmd = new Command("deliver", "Generate, validate, and deploy a backlog item.");
+        cmd.Options.Add(itemIdOption);
+        cmd.Options.Add(approveOption);
+
+        cmd.SetAction(parseResult =>
+        {
+            var workdir = ResolveWorkdir(parseResult, workdirOption);
+            var verbose = parseResult.GetValue(verboseOption);
+            var itemId = parseResult.GetValue(itemIdOption);
+            var approve = parseResult.GetValue(approveOption);
+
+            // Resolve flow from DI container
+            var flow = provider.GetRequiredService<Flows.DeliverFlow>();
+            var exitCode = flow.Execute(workdir, itemId, verbose, approve);
+
+            if (exitCode == Domain.Enums.FlowExitCode.Success)
+            {
+                AnsiConsole.MarkupLine($"Deliver: item [blue]{itemId}[/]");
+                AnsiConsole.MarkupLine(approve
+                    ? "[green]✓[/] Approved and deployed. Workspace candidate copied to /apps/. Decision logged."
+                    : "[green]✓[/] Validation passed. Preview written. Run with --approve to deploy.");
+                AnsiConsole.MarkupLine("[grey]See state/runs/ for artifacts.[/]");
+            }
+            else if (exitCode == Domain.Enums.FlowExitCode.InvalidRepoLayout)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Repo layout invalid. Run `init` for details.");
+            else if (exitCode == Domain.Enums.FlowExitCode.ItemNotFound)
+                AnsiConsole.MarkupLine($"[red]✗ FAIL[/] Backlog item not found: {itemId}");
+            else if (exitCode == Domain.Enums.FlowExitCode.BacklogParseError)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Could not parse state/backlog.yaml");
+            else if (exitCode == Domain.Enums.FlowExitCode.PreconditionFailed)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Item does not meet preconditions (status != ready_for_dev, no estimate, no epic_id, no delivery_template_id).");
+            else if (exitCode == Domain.Enums.FlowExitCode.ValidationFailed)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Validation failed. See state/runs/ for details. Fix and retry.");
+            else if (exitCode == Domain.Enums.FlowExitCode.ApplyFailed)
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Failed to deploy implementation.");
+            else if (exitCode == Domain.Enums.FlowExitCode.UnexpectedError)
+                AnsiConsole.MarkupLine($"[red]✗ FAIL[/] Unexpected error. Check logs for details.");
+            else
+                AnsiConsole.MarkupLine($"[red]✗ FAIL[/] Unexpected error (exit code {(int)exitCode}).");
+
+            return (int)exitCode;
         });
 
         return cmd;
@@ -303,8 +400,42 @@ internal static class Program
     }
 }
 
-internal static class RepoChecks
+public static class RepoChecks
 {
+    /// <summary>
+    /// Create all required directories if they don't exist.
+    /// Returns a list of directories that were created.
+    /// </summary>
+    public static List<string> EnsureDirectoriesExist(string workdir)
+    {
+        var created = new List<string>();
+
+        // Required directories
+        var requiredDirs = new[]
+        {
+            "src",
+            "state",
+            "prompts",
+            Path.Combine("prompts", "personas"),
+            Path.Combine("prompts", "flows"),
+            Path.Combine("state", "decisions"),
+            Path.Combine("state", "runs"),
+            "apps"
+        };
+
+        foreach (var rel in requiredDirs)
+        {
+            var fullPath = Path.Combine(workdir, rel);
+            if (!Directory.Exists(fullPath))
+            {
+                Directory.CreateDirectory(fullPath);
+                created.Add(rel);
+            }
+        }
+
+        return created;
+    }
+
     public static List<string> ValidateLayout(string workdir)
     {
         var problems = new List<string>();
@@ -316,12 +447,15 @@ internal static class RepoChecks
         RequireDir(workdir, Path.Combine("prompts", "personas"), problems);
         RequireDir(workdir, Path.Combine("prompts", "flows"), problems);
         RequireDir(workdir, Path.Combine("state", "decisions"), problems);
+        RequireDir(workdir, Path.Combine("state", "runs"), problems);
+        RequireDir(workdir, "apps", problems);
 
         // Required state files
         RequireFile(workdir, Path.Combine("state", "team-board.md"), problems);
         RequireFile(workdir, Path.Combine("state", "backlog.yaml"), problems);
         RequireFile(workdir, Path.Combine("state", "risks.md"), problems);
         RequireFile(workdir, Path.Combine("state", "decisions", "decision-log.md"), problems);
+        RequireFile(workdir, Path.Combine("state", "epics.yaml"), problems);
 
 
         // Persona prompts

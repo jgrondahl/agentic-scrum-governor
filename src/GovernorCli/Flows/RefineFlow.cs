@@ -339,8 +339,8 @@ public static class RefineFlow
         {
             status = item.Status,
             priority = item.Priority,
-            acceptance_criteria = item.Acceptance_Criteria.ToArray(),
-            non_goals = item.Non_Goals.ToArray()
+            acceptance_criteria = item.AcceptanceCriteria.ToArray(),
+            non_goals = item.NonGoals.ToArray()
         };
 
         // Update priority if suggested
@@ -357,8 +357,8 @@ public static class RefineFlow
         {
             status = item.Status,
             priority = item.Priority,
-            acceptance_criteria = item.Acceptance_Criteria.ToArray(),
-            non_goals = item.Non_Goals.ToArray()
+            acceptance_criteria = item.AcceptanceCriteria.ToArray(),
+            non_goals = item.NonGoals.ToArray()
         };
 
         var beforeAc = ToSet(before.acceptance_criteria);
@@ -380,8 +380,8 @@ public static class RefineFlow
             addedNonGoals = addedNonGoals.Take(MaxAdds).ToArray();
 
         // Merge uniquely (don’t destroy existing content)
-        item.Acceptance_Criteria = MergeUnique(item.Acceptance_Criteria, addedAcceptanceCriteria.ToList());
-        item.Non_Goals = MergeUnique(item.Non_Goals, addedNonGoals.ToList());
+        item.AcceptanceCriteria = MergeUnique(item.AcceptanceCriteria, addedAcceptanceCriteria.ToList());
+        item.NonGoals = MergeUnique(item.NonGoals, addedNonGoals.ToList());
 
         var patch = new
         {
@@ -429,16 +429,16 @@ public static class RefineFlow
         // Capture BEFORE (truthful)
         var beforeStatus = original.Status;
         var beforePriority = original.Priority;
-        var beforeAc = original.Acceptance_Criteria.ToArray();
-        var beforeNg = original.Non_Goals.ToArray();
+        var beforeAc = original.AcceptanceCriteria.ToArray();
+        var beforeNg = original.NonGoals.ToArray();
 
         // Compute AFTER by applying changes to local copies only
         var afterStatus = original.Status;
         var afterPriority = po.PrioritySuggestion;
 
         // Merge uniquely (same semantics you already use)
-        var mergedAc = MergeUnique(original.Acceptance_Criteria, po.AcceptanceCriteriaUpdates);
-        var mergedNg = MergeUnique(original.Non_Goals, po.NonGoalsUpdates);
+        var mergedAc = MergeUnique(original.AcceptanceCriteria, po.AcceptanceCriteriaUpdates);
+        var mergedNg = MergeUnique(original.NonGoals, po.NonGoalsUpdates);
 
         // Delta sets
         static HashSet<string> ToSet(IEnumerable<string> xs) =>
@@ -456,8 +456,8 @@ public static class RefineFlow
 
         // Now compute final AFTER arrays that correspond to what we'd actually apply
         // (Only apply up to MaxAdds new entries per run)
-        var finalAfterAc = MergeUnique(original.Acceptance_Criteria, addedAcArr.ToList()).ToArray();
-        var finalAfterNg = MergeUnique(original.Non_Goals, addedNgArr.ToList()).ToArray();
+        var finalAfterAc = MergeUnique(original.AcceptanceCriteria, addedAcArr.ToList()).ToArray();
+        var finalAfterNg = MergeUnique(original.NonGoals, addedNgArr.ToList()).ToArray();
 
         return new PoPatch
         {
@@ -491,8 +491,8 @@ public static class RefineFlow
         item.Status = patch.AfterStatus;
         item.Priority = patch.AfterPriority;
 
-        item.Acceptance_Criteria = patch.AfterAcceptanceCriteria.ToList();
-        item.Non_Goals = patch.AfterNonGoals.ToList();
+        item.AcceptanceCriteria = patch.AfterAcceptanceCriteria.ToList();
+        item.NonGoals = patch.AfterNonGoals.ToList();
 
         BacklogSaver.Save(backlogPath, backlog);
     }
@@ -596,10 +596,10 @@ public static class RefineFlow
         {item.Story}
 
         Acceptance Criteria:
-        {(item.Acceptance_Criteria.Count == 0 ? "(none)" : string.Join("; ", item.Acceptance_Criteria))}
+        {(item.AcceptanceCriteria.Count == 0 ? "(none)" : string.Join("; ", item.AcceptanceCriteria))}
 
         Non-goals:
-        {(item.Non_Goals.Count == 0 ? "(none)" : string.Join("; ", item.Non_Goals))}
+        {(item.NonGoals.Count == 0 ? "(none)" : string.Join("; ", item.NonGoals))}
         """;
     }
 
@@ -625,10 +625,10 @@ public static class RefineFlow
         {item.Story}
 
         ## Acceptance Criteria
-        {(item.Acceptance_Criteria.Count == 0 ? "- (none)" : string.Join(Environment.NewLine, item.Acceptance_Criteria.Select(x => $"- {x}")))}
+        {(item.AcceptanceCriteria.Count == 0 ? "- (none)" : string.Join(Environment.NewLine, item.AcceptanceCriteria.Select(x => $"- {x}")))}
 
         ## Non-goals
-        {(item.Non_Goals.Count == 0 ? "- (none)" : string.Join(Environment.NewLine, item.Non_Goals.Select(x => $"- {x}")))}
+        {(item.NonGoals.Count == 0 ? "- (none)" : string.Join(Environment.NewLine, item.NonGoals.Select(x => $"- {x}")))}
 
         ## Dependencies
         {(item.Dependencies.Count == 0 ? "- (none)" : string.Join(Environment.NewLine, item.Dependencies.Select(x => $"- {x}")))}

@@ -1,5 +1,6 @@
 backlog:
 - id: 1
+  epic_id: 1
   title: 'PLACEHOLDER: Define product concept'
   status: ready
   priority: 1
@@ -45,6 +46,7 @@ backlog:
   dependencies: []
   risks: []
 - id: 2
+  epic_id: 2
   title: My music tool idea
   status: candidate
   priority: 1
@@ -76,6 +78,7 @@ backlog:
   dependencies: []
   risks: []
 - id: 3
+  epic_id: 3
   title: My music tool idea
   status: candidate
   priority: 1
@@ -107,6 +110,7 @@ backlog:
   dependencies: []
   risks: []
 - id: 4
+  epic_id: 12
   title: Reference Track Comparison Tool
   status: ready_for_dev
   priority: 2
@@ -136,5 +140,20 @@ backlog:
   non_goals:
   - The tool will not perform automatic adjustments to user tracks.
   - The tool will not store any uploaded tracks permanently.
+  dependencies: []
+  risks: []
+- id: 999
+  title: Deliver Engine Smoke Test
+  status: ready_for_dev
+  priority: 1
+  size: S
+  owner: DEV
+  epic_id: 888
+  delivery_template_id: fixture_dotnet_console_hello
+  story: Smoke test for Phase 3 deliver flow.
+  estimate:
+    story_points: 1
+  acceptance_criteria: []
+  non_goals: []
   dependencies: []
   risks: []

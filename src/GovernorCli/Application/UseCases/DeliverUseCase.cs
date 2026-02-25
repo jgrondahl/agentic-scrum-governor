@@ -1,3 +1,4 @@
+using GovernorCli.Application.Models;
 using GovernorCli.Application.Models.Deliver;
 using GovernorCli.Application.Stores;
 using GovernorCli.Domain.Enums;
@@ -50,28 +51,33 @@ public class DeliverUseCase : IDeliverUseCase
         // 1) Generate implementation plan
         var workspaceAppRoot = Path.Combine(request.WorkspaceRoot, "apps", request.AppId);
 
-        // Select template by ID (allows future non-fixture generators)
-        ValidateTemplate(request.TemplateId);
+        // Use ArchitecturePlan from request (loaded by Flow from Phase 2 artifacts)
+        var phase2Plan = request.ArchitecturePlan;
 
-        var plan = new ImplementationPlan
+        // Validate architecture provides what's needed for generation
+        ValidateArchitecture(request, phase2Plan);
+
+        // Build deliver-specific plan (simplified)
+        var appTypeDescription = phase2Plan?.AppType ?? "unknown";
+        var deliverPlan = new Application.Models.Deliver.DeliveryImplementationPlan
         {
             RunId = request.RunId,
             ItemId = request.ItemId,
             AppId = request.AppId,
-            TemplateId = request.TemplateId,  // From Phase 2
+            TemplateId = appTypeDescription,
             WorkspaceTargetPath = workspaceAppRoot,
             Actions = new()
             {
-                $"Generate {request.TemplateId}",
+                $"Generate {appTypeDescription}",
                 "Validate build",
                 "Validate run"
             }
         };
 
-        _runArtifactStore.WriteJson(runDir, "implementation-plan.json", plan);
+        _runArtifactStore.WriteJson(runDir, "implementation-plan.json", deliverPlan);
 
-        // 2) Generate candidate implementation (template-specific)
-        GenerateCandidate(request.TemplateId, workspaceAppRoot, request.AppId);
+        // 2) Generate candidate implementation (LLM or template)
+        GenerateCandidate(request, workspaceAppRoot, runDir, phase2Plan, item);
 
         // 3) Validate candidate: run build and run commands
         var validation = RunValidation(workspaceAppRoot, runDir);
@@ -88,7 +94,7 @@ public class DeliverUseCase : IDeliverUseCase
 
         var result = new DeliverResult
         {
-            Plan = plan,
+            Plan = deliverPlan,
             Validation = validation,
             Preview = preview,
             WorkspaceRoot = request.WorkspaceRoot,
@@ -243,47 +249,249 @@ public class DeliverUseCase : IDeliverUseCase
         }
     }
 
-    private void ValidateTemplate(string templateId)
+    private void ValidateArchitecture(DeliverRequest request, ImplementationPlan? plan)
     {
-        // Allowlist of valid templates (Phase 2 outputs must use one of these)
-        var allowedTemplates = new[] { Deliver.FixtureDotNetTemplateGenerator.TemplateId };
-        if (!allowedTemplates.Contains(templateId))
-            throw new InvalidOperationException($"Template not allowed: {templateId}. Must be one of: {string.Join(", ", allowedTemplates)}");
+        if (plan == null)
+            throw new InvalidOperationException(
+                $"No implementation plan found. Run 'governor refine-tech --item {request.ItemId} --approve' first.");
+
+        if (string.IsNullOrEmpty(plan.AppType))
+            throw new InvalidOperationException(
+                "Implementation plan is missing app_type. The SAD did not specify an application type. " +
+                $"Please re-run 'governor refine-tech --item {request.ItemId}' and ensure the AI provides an app_type (e.g., web_blazor, web_api, console).");
+
+        if (plan.Stack == null || string.IsNullOrEmpty(plan.Stack.Language))
+            throw new InvalidOperationException(
+                "Implementation plan is missing stack information (language, runtime, framework). " +
+                $"Re-run 'governor refine-tech --item {request.ItemId}' to generate complete architecture.");
     }
 
-    private void GenerateCandidate(string templateId, string workspaceAppRoot, string appId)
+    private void GenerateCandidate(
+        DeliverRequest request,
+        string workspaceAppRoot,
+        string runDir,
+        ImplementationPlan? phase2Plan,
+        BacklogItem item)
     {
-        // Route to correct generator (currently only fixture, extensible for Phase 4+)
-        if (templateId == Deliver.FixtureDotNetTemplateGenerator.TemplateId)
+        // Check if we have LLM context for code generation
+        var hasLlmContext = !string.IsNullOrEmpty(request.ArchitectureContent) ||
+                           !string.IsNullOrEmpty(request.TechnicalTasksContent) ||
+                           phase2Plan != null;
+
+        if (hasLlmContext && phase2Plan != null)
         {
-            Deliver.FixtureDotNetTemplateGenerator.Generate(workspaceAppRoot, appId);
+            GenerateWithLlmAsync(request, workspaceAppRoot, runDir, phase2Plan, item).GetAwaiter().GetResult();
             return;
         }
 
-        throw new InvalidOperationException($"No generator found for template: {templateId}");
+        // Fallback to fixture template only if no architecture plan
+        if (phase2Plan == null)
+        {
+            Deliver.FixtureDotNetTemplateGenerator.Generate(workspaceAppRoot, request.AppId);
+            return;
+        }
+
+        throw new InvalidOperationException(
+        $"No code generation context available. " +
+        $"Ensure 'governor refine-tech --item {request.ItemId}' has been run with approval.");
+    }
+
+    private async Task GenerateWithLlmAsync(
+        DeliverRequest request,
+        string workspaceAppRoot,
+        string runDir,
+        Models.ImplementationPlan? phase2Plan,
+        BacklogItem item)
+    {
+        var modelConfig = request.GetModelConfig();
+        var generator = new LlmCodeGenerator();
+
+        var phases = new[] { "core", "tests", "config" };
+
+        foreach (var phase in phases)
+        {
+            var phaseFileName = $"code-{phase}.json";
+            var phaseFilePath = Path.Combine(runDir, phaseFileName);
+
+            if (File.Exists(phaseFilePath))
+            {
+                // Resume: load existing generated files
+                var existingJson = File.ReadAllText(phaseFilePath);
+                var spec = System.Text.Json.JsonSerializer.Deserialize<CodeGenerationSpec>(existingJson);
+                if (spec != null)
+                {
+                    WriteGeneratedFiles(spec, workspaceAppRoot);
+                    continue;
+                }
+            }
+
+            // Generate new - wrap in try-catch for detailed error messages
+            var effectivePlan = phase2Plan ?? CreateDefaultPlan(request, item);
+            try
+            {
+                await generator.GenerateCodeAsync(
+                    effectivePlan,
+                    item,
+                    request.Workdir,
+                    workspaceRoot: workspaceAppRoot,
+                    runDir,
+                    modelConfig,
+                    phase,
+                    request.ArchitectureContent,
+                    request.QaPlanContent,
+                    request.TechnicalTasksContent);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"LLM code generation FAILED during '{phase}' phase for item {item.Id}. " +
+                    $"Error: {ex.Message}. " +
+                    $"Run 'governor refine-tech --item {item.Id} --approve' to regenerate architecture, " +
+                    $"or check that your LLM API key is configured.");
+            }
+
+            // Check if LLM returned error files (parse failures)
+            var errorFile = Path.Combine(runDir, $"error-{phase}.txt");
+            if (File.Exists(errorFile))
+            {
+                var errorContent = File.ReadAllText(errorFile);
+                throw new InvalidOperationException(
+                    $"LLM failed to parse response for '{phase}' phase (item {item.Id}). " +
+                    $"The LLM returned invalid JSON. " +
+                    $"Error details: {errorContent.Substring(0, Math.Min(500, errorContent.Length))}. " +
+                    $"This may be a prompt issue - check prompts/flows/code-generation.md");
+            }
+
+            // Validate after core phase - fail fast if build fails
+            if (phase == "core")
+            {
+                var validation = RunValidation(workspaceAppRoot, runDir);
+                _runArtifactStore.WriteJson(runDir, $"validation-{phase}.json", validation);
+
+                if (!validation.Passed)
+                {
+                    var buildLog = File.ReadAllText(Path.Combine(runDir, "build.stdout.log"));
+                    var buildErr = File.ReadAllText(Path.Combine(runDir, "build.stderr.log"));
+
+                    throw new InvalidOperationException(
+                        $"Build validation FAILED during '{phase}' phase for item {item.Id}. " +
+                        $"The generated code does not compile. " +
+                        $"Build output: {buildLog.Substring(0, Math.Min(500, buildLog.Length))}. " +
+                        $"Build errors: {buildErr.Substring(0, Math.Min(500, buildErr.Length))}. " +
+                        $"This indicates the LLM generated invalid or incomplete code. " +
+                        $"Re-run 'governor refine-tech --item {item.Id} --approve' to regenerate.");
+                }
+            }
+        }
+
+        // Verify at least one .csproj was generated
+        var csprojFiles = Directory.GetFiles(workspaceAppRoot, "*.csproj", SearchOption.AllDirectories);
+        if (csprojFiles.Length == 0)
+        {
+            var generatedFiles = Directory.Exists(workspaceAppRoot)
+                ? string.Join(", ", Directory.GetFiles(workspaceAppRoot, "*", SearchOption.AllDirectories).Select(f => Path.GetFileName(f)))
+                : "(none)";
+
+            throw new InvalidOperationException(
+                $"LLM code generation completed but no .csproj file was created for item {item.Id}. " +
+                $"Generated files: {generatedFiles}. " +
+                $"The 'config' phase may have failed to generate the project file. " +
+                $"Check prompts/personas/senior-architect-dev.md includes instructions for .csproj generation.");
+        }
+    }
+
+    private void WriteGeneratedFiles(CodeGenerationSpec spec, string workspaceRoot)
+    {
+        foreach (var file in spec.SourceFiles)
+        {
+            var fullPath = Path.Combine(workspaceRoot, file.Path);
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(fullPath, file.Content);
+        }
+
+        foreach (var file in spec.ConfigFiles)
+        {
+            var fullPath = Path.Combine(workspaceRoot, file.Path);
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(fullPath, file.Content);
+        }
+
+        foreach (var file in spec.TestFiles)
+        {
+            var fullPath = Path.Combine(workspaceRoot, file.Path);
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(fullPath, file.Content);
+        }
     }
 
     private void WriteSummary(string runDir, int itemId, string runId, DeliverPatchPreview preview, bool validationPassed, bool approved = false)
     {
         var status = approved ? "✓ APPROVED and DEPLOYED" : (validationPassed ? "✓ VALIDATED (preview)" : "✗ VALIDATION FAILED");
         var summary = $"""
-# Deliver Summary
+            # Deliver Summary
+            
+            Item: {itemId}
+            Run: {runId}
+            Status: {status}
 
-Item: {itemId}
-Run: {runId}
-Status: {status}
+            ## Validation
+            - Passed: {validationPassed}
+            - Commands: 2 (dotnet build, dotnet run)
 
-## Validation
-- Passed: {validationPassed}
-- Commands: 2 (dotnet build, dotnet run)
+            ## Patch Preview
+            - Files: {preview.Files.Count} files
+            - Target: {preview.RepoTarget}
 
-## Patch Preview
-- Files: {preview.Files.Count} files
-- Target: {preview.RepoTarget}
-
-## Next Steps
-{(approved ? "✓ Patch applied to repo. Decision logged." : (validationPassed ? "Next: Approve deployment with:\n  governor deliver --item " + itemId + " --approve" : "Fix issues and retry."))}
-""";
+            ## Next Steps
+            {(approved ? "✓ Patch applied to repo. Decision logged." : (validationPassed ? "Next: Approve deployment with:\n  governor deliver --item " + itemId + " --approve" : "Fix issues and retry."))}
+            """;
         _runArtifactStore.WriteText(runDir, "summary.md", summary);
+    }
+
+    private Application.Models.ImplementationPlan CreateDefaultPlan(DeliverRequest request, BacklogItem item)
+    {
+        return new Application.Models.ImplementationPlan
+        {
+            PlanId = $"PLAN-{request.RunId}",
+            CreatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            CreatedFromRunId = request.RunId,
+            ItemId = request.ItemId,
+            EpicId = request.EpicId ?? "",
+            AppId = request.AppId,
+            RepoTarget = $"apps/{request.AppId}",
+            AppType = request.ArchitecturePlan?.AppType ?? "dotnet_console",
+            Stack = new StackInfo
+            {
+                Language = "csharp",
+                Runtime = "net8.0",
+                Framework = "dotnet"
+            },
+            ProjectLayout = new List<ProjectFile>
+            {
+                new() { Path = "Program.cs", Kind = "source" }
+            },
+            BuildPlan = new List<ExecutionStep>
+            {
+                new() { Tool = "dotnet", Args = new List<string> { "build" }, Cwd = "." }
+            },
+            RunPlan = new List<ExecutionStep>
+            {
+                new() { Tool = "dotnet", Args = new List<string> { "run" }, Cwd = "." }
+            },
+            ValidationChecks = new List<ValidationCheck>
+            {
+                new() { Type = "exit_code_equals", Value = "0" }
+            },
+            PatchPolicy = new PatchPolicy
+            {
+                ExcludeGlobs = new List<string> { "bin/**", "obj/**" }
+            }
+        };
     }
 }

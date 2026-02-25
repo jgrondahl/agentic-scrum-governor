@@ -79,7 +79,36 @@ public class DeliverFlow
             // 8) Create run directory for artifacts
             var runDir = _runArtifactStore.CreateRunFolder(runsDir, runId);
 
-            // 9) Pass to UseCase (deterministic, zero environment coupling)
+            // 9) Load Phase 2 artifacts (architecture, QA plan, technical tasks) for code generation
+            var phase2PlanPath = Path.Combine(workdir, item.ImplementationPlanRef!);
+            var phase2RunDir = Path.GetDirectoryName(phase2PlanPath) ?? "";
+
+            Application.Models.ImplementationPlan? architecturePlan = null;
+            string? architectureContent = null;
+            string? qaPlanContent = null;
+            string? technicalTasksContent = null;
+
+            // Load implementation plan
+            if (File.Exists(phase2PlanPath))
+            {
+                var planJson = File.ReadAllText(phase2PlanPath);
+                architecturePlan = System.Text.Json.JsonSerializer.Deserialize<Application.Models.ImplementationPlan>(planJson);
+            }
+
+            // Load design artifacts from Phase 2 run directory
+            var architecturePath = Path.Combine(phase2RunDir, "architecture.md");
+            if (File.Exists(architecturePath))
+                architectureContent = File.ReadAllText(architecturePath);
+
+            var qaPlanPath = Path.Combine(phase2RunDir, "qa-plan.md");
+            if (File.Exists(qaPlanPath))
+                qaPlanContent = File.ReadAllText(qaPlanPath);
+
+            var tasksPath = Path.Combine(phase2RunDir, "technical-tasks.yaml");
+            if (File.Exists(tasksPath))
+                technicalTasksContent = File.ReadAllText(tasksPath);
+
+            // 10) Pass to UseCase (deterministic, zero environment coupling)
             var request = new DeliverRequest
             {
                 ItemId = itemId,
@@ -91,7 +120,11 @@ public class DeliverFlow
                 RunId = runId,
                 RunDir = runDir,
                 Approve = approve,
-                TemplateId = item.DeliveryTemplateId!  // Already validated non-null
+                ArchitecturePlan = architecturePlan,
+                ArchitectureContent = architectureContent,
+                QaPlanContent = qaPlanContent,
+                TechnicalTasksContent = technicalTasksContent,
+                EpicId = item.EpicId
             };
 
             var response = _useCase.Process(request);
@@ -181,11 +214,19 @@ public class DeliverFlow
         if (string.IsNullOrEmpty(item.EpicId))
             throw new InvalidOperationException($"Item {itemId}: epic_id is required");
 
-        // 4) delivery_template_id must exist and non-empty
-        if (string.IsNullOrEmpty(item.DeliveryTemplateId))
-            throw new InvalidOperationException($"Item {itemId}: delivery_template_id is required (must be set by Phase 2)");
+        // 4) implementation_plan_ref must exist and point to valid file
+        if (string.IsNullOrEmpty(item.ImplementationPlanRef))
+            throw new InvalidOperationException(
+                $"Item {itemId}: implementation_plan_ref is required. " +
+                "Run 'governor refine-tech --item {itemId} --approve' first to generate the implementation plan.");
 
-        // 5) Epic must resolve to app_id in state/epics.yaml
+        var planPath = Path.Combine(workdir, item.ImplementationPlanRef);
+        if (!File.Exists(planPath))
+            throw new InvalidOperationException(
+                $"Item {itemId}: implementation_plan_ref points to non-existent file: {item.ImplementationPlanRef}. " +
+                "Run 'governor refine-tech --item {itemId} --approve' first.");
+
+        // 6) Epic must resolve to app_id in state/epics.yaml
         try
         {
             _epicStore.ResolveAppId(workdir, item.EpicId);

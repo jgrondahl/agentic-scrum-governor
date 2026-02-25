@@ -1,0 +1,12 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "src\\GovernorCli\\GovernorCli.csproj",
+        "Action": "Start",
+        "DebugTarget": "GovernorCli"
+      }
+    ]
+  }
+]

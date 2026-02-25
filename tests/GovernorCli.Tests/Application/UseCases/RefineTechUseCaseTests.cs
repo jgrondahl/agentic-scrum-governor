@@ -13,17 +13,51 @@ public class RefineTechUseCaseTests
 {
     private Mock<IBacklogStore> _backlogStoreMock = null!;
     private Mock<IRunArtifactStore> _runArtifactStoreMock = null!;
+    private Mock<IEpicStore> _epicStoreMock = null!;
+    private Mock<IPlanStore> _planStoreMock = null!;
+    private Mock<IPatchPreviewService> _patchPreviewServiceMock = null!;
     private RefineTechUseCase _useCase = null!;
+    private string _testWorkdir = null!;
 
     [SetUp]
     public void Setup()
     {
         _backlogStoreMock = new Mock<IBacklogStore>();
         _runArtifactStoreMock = new Mock<IRunArtifactStore>();
+        _epicStoreMock = new Mock<IEpicStore>();
+        _planStoreMock = new Mock<IPlanStore>();
+        _patchPreviewServiceMock = new Mock<IPatchPreviewService>();
 
         _useCase = new RefineTechUseCase(
             _backlogStoreMock.Object,
-            _runArtifactStoreMock.Object);
+            _runArtifactStoreMock.Object,
+            _epicStoreMock.Object,
+            _planStoreMock.Object,
+            _patchPreviewServiceMock.Object);
+
+        _testWorkdir = Path.Combine(Path.GetTempPath(), $"governor-test-{Guid.NewGuid():N}");
+        SetupTestPrompts(_testWorkdir);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        if (Directory.Exists(_testWorkdir))
+        {
+            try { Directory.Delete(_testWorkdir, recursive: true); }
+            catch { }
+        }
+    }
+
+    private void SetupTestPrompts(string testDir)
+    {
+        Directory.CreateDirectory(Path.Combine(testDir, "prompts", "flows"));
+        Directory.CreateDirectory(Path.Combine(testDir, "prompts", "personas"));
+
+        File.WriteAllText(Path.Combine(testDir, "prompts", "flows", "refine-tech.md"), "# Test refine-tech prompt\n");
+        File.WriteAllText(Path.Combine(testDir, "prompts", "personas", "senior-architect-dev.md"), "# Test SAD prompt\n");
+        File.WriteAllText(Path.Combine(testDir, "prompts", "personas", "senior-audio-dev.md"), "# Test SASD prompt\n");
+        File.WriteAllText(Path.Combine(testDir, "prompts", "personas", "qa-engineer.md"), "# Test QA prompt\n");
     }
 
     [Test]
@@ -34,7 +68,13 @@ public class RefineTechUseCaseTests
         {
             Backlog = new List<BacklogItem>
             {
-                new BacklogItem { Id = 1, Title = "Test Item", Status = "candidate" }
+                new BacklogItem 
+                { 
+                    Id = 1, 
+                    Title = "Test Item", 
+                    Status = "candidate",
+                    EpicId = "epic-1"
+                }
             }
         };
 
@@ -44,12 +84,28 @@ public class RefineTechUseCaseTests
         _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
             .Returns("/tmp/run");
 
+        _epicStoreMock.Setup(s => s.ResolveAppId(It.IsAny<string>(), "epic-1"))
+            .Returns("test-app");
+
+        var patchPreview = new PatchPreviewData
+        {
+            ComputedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            ItemId = 1,
+            Changes = new List<PatchFileChange>()
+        };
+
+        _patchPreviewServiceMock.Setup(s => s.ComputePatchPreview(It.IsAny<string>(), 1, It.IsAny<string>()))
+            .Returns(patchPreview);
+
+        _patchPreviewServiceMock.Setup(s => s.FormatDiffLines(It.IsAny<PatchPreviewData>()))
+            .Returns(new List<string>());
+
         var request = new RefineTechRequest
         {
             ItemId = 1,
-            BacklogPath = "/tmp/backlog.yaml",
-            RunsDir = "/tmp/runs",
-            Workdir = "/tmp",
+            BacklogPath = Path.Combine(_testWorkdir, "backlog.yaml"),
+            RunsDir = Path.Combine(_testWorkdir, "runs"),
+            Workdir = _testWorkdir,
             RunId = "20240115_103000_refine-tech_item-1",
             Approve = false
         };
@@ -60,7 +116,7 @@ public class RefineTechUseCaseTests
         // Assert
         Assert.That(result.Success, Is.True);
         Assert.That(result.RunId, Is.EqualTo("20240115_103000_refine-tech_item-1"));
-        
+
         // ✅ Patch is TYPED, not anonymous object
         Assert.That(result.Patch, Is.Not.Null);
         Assert.That(result.Patch!.ItemId, Is.EqualTo(1));
@@ -70,7 +126,7 @@ public class RefineTechUseCaseTests
         // Verify stores called correctly
         _backlogStoreMock.Verify(s => s.Load(It.IsAny<string>()), Times.Once);
         _runArtifactStoreMock.Verify(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
-        _runArtifactStoreMock.Verify(s => s.WriteJson(It.IsAny<string>(), "patch.preview.json", It.IsAny<PatchPreview>()), Times.Once);
+        _runArtifactStoreMock.Verify(s => s.WriteJson(It.IsAny<string>(), "implementation.plan.json", It.IsAny<ImplementationPlan>()), Times.Once);
     }
 
     [Test]
@@ -85,9 +141,9 @@ public class RefineTechUseCaseTests
         var request = new RefineTechRequest
         {
             ItemId = 999,
-            BacklogPath = "/tmp/backlog.yaml",
-            RunsDir = "/tmp/runs",
-            Workdir = "/tmp",
+            BacklogPath = Path.Combine(_testWorkdir, "backlog.yaml"),
+            RunsDir = Path.Combine(_testWorkdir, "runs"),
+            Workdir = _testWorkdir,
             RunId = "20240115_103000_refine-tech_item-999",
             Approve = false
         };
@@ -104,22 +160,53 @@ public class RefineTechUseCaseTests
         {
             Backlog = new List<BacklogItem>
             {
-                new BacklogItem { Id = 1, Title = "Test", Status = "candidate", Estimate = null }
+                new BacklogItem { Id = 1, Title = "Test", Status = "candidate", EpicId = "epic-1", Estimate = null }
             }
         };
 
         _backlogStoreMock.Setup(s => s.Load(It.IsAny<string>()))
             .Returns(backlog);
 
+        _backlogStoreMock.Setup(s => s.Save(It.IsAny<string>(), It.IsAny<BacklogFile>()))
+            .Verifiable();
+
         _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
             .Returns("/tmp/run");
+
+        _runArtifactStoreMock.Setup(s => s.WriteJson(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>()))
+            .Verifiable();
+
+        _runArtifactStoreMock.Setup(s => s.WriteText(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Verifiable();
+
+        _epicStoreMock.Setup(s => s.ResolveAppId(It.IsAny<string>(), "epic-1"))
+            .Returns("test-app");
+
+        var patchPreview = new PatchPreviewData
+        {
+            ComputedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            ItemId = 1,
+            Changes = new List<PatchFileChange>()
+        };
+
+        _patchPreviewServiceMock.Setup(s => s.ComputePatchPreview(It.IsAny<string>(), 1, It.IsAny<string>()))
+            .Returns(patchPreview);
+
+        _patchPreviewServiceMock.Setup(s => s.FormatDiffLines(It.IsAny<PatchPreviewData>()))
+            .Returns(new List<string>());
+
+        _planStoreMock.Setup(s => s.GetPlanPath(It.IsAny<string>(), 1))
+            .Returns("/tmp/plans/item-1/implementation.plan.json");
+
+        _planStoreMock.Setup(s => s.SavePlan(It.IsAny<string>(), 1, It.IsAny<ImplementationPlan>()))
+            .Verifiable(); // Setup SavePlan to succeed
 
         var request = new RefineTechRequest
         {
             ItemId = 1,
-            BacklogPath = "/tmp/backlog.yaml",
-            RunsDir = "/tmp/runs",
-            Workdir = "/tmp",
+            BacklogPath = Path.Combine(_testWorkdir, "backlog.yaml"),
+            RunsDir = Path.Combine(_testWorkdir, "runs"),
+            Workdir = _testWorkdir,
             RunId = "20240115_103000_refine-tech_item-1",
             Approve = true  // ← Key difference
         };
@@ -135,7 +222,7 @@ public class RefineTechUseCaseTests
 
         // Verify applied patch was written
         _runArtifactStoreMock.Verify(
-            s => s.WriteJson(It.IsAny<string>(), "patch.json", It.IsAny<AppliedPatch>()),
+            s => s.WriteJson(It.IsAny<string>(), "patch.backlog.applied.json", It.IsAny<object>()),
             Times.Once);
     }
 }

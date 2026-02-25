@@ -1,11 +1,12 @@
-using Moq;
-using NUnit.Framework;
+using GovernorCli.Application.Models;
 using GovernorCli.Application.Models.Deliver;
 using GovernorCli.Application.Stores;
 using GovernorCli.Application.UseCases;
 using GovernorCli.Domain.Enums;
 using GovernorCli.Domain.Exceptions;
 using GovernorCli.State;
+using Moq;
+using NUnit.Framework;
 
 namespace GovernorCli.Tests.Application.UseCases;
 
@@ -59,7 +60,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             Workdir = "/tmp",
@@ -74,14 +75,14 @@ public class DeliverUseCaseTests
         // Assert
         Assert.That(response.Success, Is.True);
         Assert.That(response.ValidationPassed, Is.True);
-        
+
         // ✅ Result is TYPED, not anonymous object
         Assert.That(response.Result, Is.Not.Null);
         Assert.That(response.Result.Plan, Is.Not.Null);
         Assert.That(response.Result.Plan.ItemId, Is.EqualTo(1));
         Assert.That(response.Result.Plan.AppId, Is.EqualTo("myapp"));
         Assert.That(response.Result.Plan.TemplateId, Is.EqualTo("fixture_dotnet_console_hello"));
-        
+
         Assert.That(response.Result.Validation, Is.Not.Null);
         Assert.That(response.Result.Validation.Passed, Is.True);
         Assert.That(response.Result.Validation.Commands, Has.Count.EqualTo(2));
@@ -96,7 +97,7 @@ public class DeliverUseCaseTests
         // Verify stores called correctly
         _backlogStoreMock.Verify(s => s.Load(It.IsAny<string>()), Times.Once);
         _runArtifactStoreMock.Verify(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
-        _runArtifactStoreMock.Verify(s => s.WriteJson(It.IsAny<string>(), "implementation-plan.json", It.IsAny<ImplementationPlan>()), Times.Once);
+        _runArtifactStoreMock.Verify(s => s.WriteJson(It.IsAny<string>(), "implementation-plan.json", It.IsAny<DeliveryImplementationPlan>()), Times.Once);
         _runArtifactStoreMock.Verify(s => s.WriteJson(It.IsAny<string>(), "validation.json", It.IsAny<ValidationReport>()), Times.Once);
     }
 
@@ -126,7 +127,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             Workdir = "/tmp",
@@ -140,10 +141,10 @@ public class DeliverUseCaseTests
 
         // Assert
         Assert.That(response.ValidationPassed, Is.False);
-        
+
         // PatchApplied should be null (validation failed)
         Assert.That(response.Result.PatchApplied, Is.Null);
-        
+
         // Deployer should NOT be called
         _appDeployerMock.Verify(s => s.Deploy(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
@@ -170,8 +171,8 @@ public class DeliverUseCaseTests
         _processRunnerMock.Setup(s => s.Run(It.IsAny<AllowedProcess>(), It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(0);
 
-        var deployedFiles = new List<PatchFile> 
-        { 
+        var deployedFiles = new List<PatchFile>
+        {
             new PatchFile { Action = "A", Path = "myapp/Program.cs", Size = 100, WorkspaceSha256 = "abc123" },
             new PatchFile { Action = "A", Path = "myapp/myapp.csproj", Size = 200, WorkspaceSha256 = "def456" }
         };
@@ -182,7 +183,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             Workdir = "/tmp",
@@ -197,7 +198,7 @@ public class DeliverUseCaseTests
         // Assert
         Assert.That(response.Success, Is.True);
         Assert.That(response.ValidationPassed, Is.True);
-        
+
         // PatchApplied should be set
         Assert.That(response.Result.PatchApplied, Is.Not.Null);
         Assert.That(response.Result.PatchApplied!.ItemId, Is.EqualTo(1));
@@ -260,7 +261,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             RunDir = "/tmp/run",
@@ -307,7 +308,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             RunDir = "/tmp/run",
@@ -350,8 +351,8 @@ public class DeliverUseCaseTests
         _processRunnerMock.Setup(s => s.Run(It.IsAny<AllowedProcess>(), It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(0);
 
-        var deployedFiles = new List<PatchFile> 
-        { 
+        var deployedFiles = new List<PatchFile>
+        {
             new PatchFile { Action = "A", Path = "myapp/Program.cs", Size = 100, WorkspaceSha256 = "abc123" }
         };
         _appDeployerMock.Setup(s => s.Deploy(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
@@ -361,7 +362,7 @@ public class DeliverUseCaseTests
         {
             ItemId = 1,
             AppId = "myapp",
-            TemplateId = "fixture_dotnet_console_hello",
+            ArchitecturePlan = new ImplementationPlan { AppType = "fixture_dotnet_console_hello" },
             BacklogPath = "/tmp/backlog.yaml",
             RunsDir = "/tmp/runs",
             RunDir = "/tmp/run",
@@ -380,5 +381,236 @@ public class DeliverUseCaseTests
 
         // ✅ DEPLOYMENT EXECUTED: Validation passed and approve=true
         _appDeployerMock.Verify(s => s.Deploy(It.IsAny<string>(), It.IsAny<string>(), "myapp"), Times.Once);
+    }
+
+    [Test]
+    public void Process_WhenBuildValidationFails_ThrowsDetailedException()
+    {
+        // Arrange
+        var backlog = new BacklogFile
+        {
+            Backlog = new List<BacklogItem>
+            {
+                new BacklogItem { Id = 1, Title = "Test Item", Status = "ready_for_dev" }
+            }
+        };
+
+        _backlogStoreMock.Setup(s => s.Load(It.IsAny<string>()))
+            .Returns(backlog);
+
+        _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns("/tmp/run");
+
+        _runArtifactStoreMock.Setup(s => s.WriteJson(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>()));
+        _runArtifactStoreMock.Setup(s => s.WriteText(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()));
+
+        // Mock FAILED build (exit code 1), PASSED run
+        _processRunnerMock.SetupSequence(s => s.Run(It.IsAny<AllowedProcess>(), It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(1)  // build fails
+            .Returns(0); // run succeeds (but won't be reached due to fail-fast)
+
+        // Create fake build log files
+        var tempRunDir = Path.Combine(Path.GetTempPath(), "governor-test-run-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempRunDir);
+        File.WriteAllText(Path.Combine(tempRunDir, "build.stdout.log"), "Build started\ncompiling...");
+        File.WriteAllText(Path.Combine(tempRunDir, "build.stderr.log"), "error CS0103: The name 'UndefinedVar' does not exist");
+
+        try
+        {
+            _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(tempRunDir);
+
+            var request = new DeliverRequest
+            {
+                ItemId = 1,
+                AppId = "myapp",
+                ArchitecturePlan = new ImplementationPlan
+                {
+                    AppType = "dotnet_webapi",
+                    Stack = new StackInfo { Language = "csharp", Runtime = "net8.0", Framework = "dotnet" },
+                    ProjectLayout = new List<ProjectFile>(),
+                    BuildPlan = new List<ExecutionStep>(),
+                    RunPlan = new List<ExecutionStep>(),
+                    ValidationChecks = new List<ValidationCheck>(),
+                    PatchPolicy = new PatchPolicy()
+                },
+                BacklogPath = "/tmp/backlog.yaml",
+                RunsDir = "/tmp/runs",
+                Workdir = "/tmp",
+                WorkspaceRoot = "/tmp/state/workspaces/myapp",
+                RunId = "20240115_103000_deliver_item-1",
+                Approve = false
+            };
+
+            // Act & Assert
+            var ex = Assert.Throws<InvalidOperationException>(() => _useCase.Process(request));
+
+            // Verify detailed error message
+            Assert.That(ex.Message, Does.Contain("Build validation FAILED"));
+            Assert.That(ex.Message, Does.Contain("core"));
+            Assert.That(ex.Message, Does.Contain("item 1"));
+            Assert.That(ex.Message, Does.Contain("does not compile"));
+            Assert.That(ex.Message, Does.Contain("governor refine-tech"));
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(tempRunDir))
+                Directory.Delete(tempRunDir, true);
+        }
+    }
+
+    [Test]
+    public void Process_WhenNoCsprojGenerated_ThrowsDetailedException()
+    {
+        // Arrange
+        var backlog = new BacklogFile
+        {
+            Backlog = new List<BacklogItem>
+            {
+                new BacklogItem { Id = 1, Title = "Test Item", Status = "ready_for_dev" }
+            }
+        };
+
+        _backlogStoreMock.Setup(s => s.Load(It.IsAny<string>()))
+            .Returns(backlog);
+
+        var tempRunDir = Path.Combine(Path.GetTempPath(), "governor-test-run-" + Guid.NewGuid());
+        var tempWorkspaceRoot = Path.Combine(Path.GetTempPath(), "governor-test-workspace-" + Guid.NewGuid());
+        var tempWorkspaceAppRoot = Path.Combine(tempWorkspaceRoot, "apps", "myapp");
+
+        Directory.CreateDirectory(tempRunDir);
+        Directory.CreateDirectory(tempWorkspaceAppRoot);
+
+        try
+        {
+            _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(tempRunDir);
+
+            // Write a phase file that indicates successful generation but NO csproj
+            var phaseJson = """
+                {
+                    "sourceFiles": [
+                        { "path": "Program.cs", "content": "Console.WriteLine(\"Hello\");", "language": "csharp" }
+                    ],
+                    "testFiles": [],
+                    "configFiles": []
+                }
+                """;
+            File.WriteAllText(Path.Combine(tempRunDir, "code-core.json"), phaseJson);
+            File.WriteAllText(Path.Combine(tempRunDir, "code-tests.json"), phaseJson);
+            File.WriteAllText(Path.Combine(tempRunDir, "code-config.json"), phaseJson);
+
+            _runArtifactStoreMock.Setup(s => s.WriteJson(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>()));
+            _runArtifactStoreMock.Setup(s => s.WriteText(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()));
+
+            var request = new DeliverRequest
+            {
+                ItemId = 1,
+                AppId = "myapp",
+                ArchitecturePlan = new ImplementationPlan
+                {
+                    AppType = "dotnet_webapi",
+                    Stack = new StackInfo { Language = "csharp", Runtime = "net8.0", Framework = "dotnet" },
+                    ProjectLayout = new List<ProjectFile>(),
+                    BuildPlan = new List<ExecutionStep>(),
+                    RunPlan = new List<ExecutionStep>(),
+                    ValidationChecks = new List<ValidationCheck>(),
+                    PatchPolicy = new PatchPolicy()
+                },
+                BacklogPath = "/tmp/backlog.yaml",
+                RunsDir = "/tmp/runs",
+                Workdir = "/tmp",
+                WorkspaceRoot = tempWorkspaceRoot,
+                RunId = "20240115_103000_deliver_item-1",
+                Approve = false
+            };
+
+            // Act & Assert
+            var ex = Assert.Throws<InvalidOperationException>(() => _useCase.Process(request));
+
+            // Verify detailed error message
+            Assert.That(ex.Message, Does.Contain("no .csproj file was created"));
+            Assert.That(ex.Message, Does.Contain("item 1"));
+            Assert.That(ex.Message, Does.Contain("config"));
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(tempRunDir))
+                Directory.Delete(tempRunDir, true);
+            if (Directory.Exists(tempWorkspaceRoot))
+                Directory.Delete(tempWorkspaceRoot, true);
+        }
+    }
+
+    [Test]
+    public void Process_WhenParseErrorFileExists_ThrowsDetailedException()
+    {
+        // Arrange
+        var backlog = new BacklogFile
+        {
+            Backlog = new List<BacklogItem>
+            {
+                new BacklogItem { Id = 1, Title = "Test Item", Status = "ready_for_dev" }
+            }
+        };
+
+        _backlogStoreMock.Setup(s => s.Load(It.IsAny<string>()))
+            .Returns(backlog);
+
+        var tempRunDir = Path.Combine(Path.GetTempPath(), "governor-test-run-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempRunDir);
+
+        try
+        {
+            _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(tempRunDir);
+
+            // Write error file from LLM parse failure
+            File.WriteAllText(Path.Combine(tempRunDir, "error-core.txt"),
+                "Failed to parse LLM response: Invalid JSON at position 42");
+
+            _runArtifactStoreMock.Setup(s => s.WriteJson(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object>()));
+            _runArtifactStoreMock.Setup(s => s.WriteText(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()));
+
+            var request = new DeliverRequest
+            {
+                ItemId = 1,
+                AppId = "myapp",
+                ArchitecturePlan = new ImplementationPlan
+                {
+                    AppType = "dotnet_webapi",
+                    Stack = new StackInfo { Language = "csharp", Runtime = "net8.0", Framework = "dotnet" },
+                    ProjectLayout = new List<ProjectFile>(),
+                    BuildPlan = new List<ExecutionStep>(),
+                    RunPlan = new List<ExecutionStep>(),
+                    ValidationChecks = new List<ValidationCheck>(),
+                    PatchPolicy = new PatchPolicy()
+                },
+                BacklogPath = "/tmp/backlog.yaml",
+                RunsDir = "/tmp/runs",
+                Workdir = "/tmp",
+                WorkspaceRoot = "/tmp/state/workspaces/myapp",
+                RunId = "20240115_103000_deliver_item-1",
+                Approve = false
+            };
+
+            // Act & Assert
+            var ex = Assert.Throws<InvalidOperationException>(() => _useCase.Process(request));
+
+            // Verify detailed error message
+            Assert.That(ex.Message, Does.Contain("failed to parse response"));
+            Assert.That(ex.Message, Does.Contain("core"));
+            Assert.That(ex.Message, Does.Contain("item 1"));
+            Assert.That(ex.Message, Does.Contain("Invalid JSON"));
+            Assert.That(ex.Message, Does.Contain("prompt"));
+        }
+        finally
+        {
+            // Cleanup
+            if (Directory.Exists(tempRunDir))
+                Directory.Delete(tempRunDir, true);
+        }
     }
 }

@@ -18,6 +18,10 @@ public class RefineTechFlowTests
     private RefineTechFlow _flow = null!;
     private string _testWorkdir = null!;
 
+    private Mock<IEpicStore> _epicStoreMock = null!;
+    private Mock<IPlanStore> _planStoreMock = null!;
+    private Mock<IPatchPreviewService> _patchPreviewServiceMock = null!;
+
     [SetUp]
     public void Setup()
     {
@@ -25,9 +29,16 @@ public class RefineTechFlowTests
         _runArtifactStoreMock = new Mock<IRunArtifactStore>();
         _decisionStoreMock = new Mock<IDecisionStore>();
 
+        _epicStoreMock = new Mock<IEpicStore>();
+        _planStoreMock = new Mock<IPlanStore>();
+        _patchPreviewServiceMock = new Mock<IPatchPreviewService>();
+
         var useCase = new RefineTechUseCase(
             _backlogStoreMock.Object,
-            _runArtifactStoreMock.Object);
+            _runArtifactStoreMock.Object,
+            _epicStoreMock.Object,
+            _planStoreMock.Object,
+            _patchPreviewServiceMock.Object);
 
         _flow = new RefineTechFlow(useCase, _decisionStoreMock.Object);
 
@@ -62,6 +73,7 @@ public class RefineTechFlowTests
             "state",
             Path.Combine("state", "decisions"),
             Path.Combine("state", "runs"),
+            Path.Combine("state", "plans"),
             "apps",
             "prompts",
             Path.Combine("prompts", "personas"),
@@ -88,6 +100,7 @@ public class RefineTechFlowTests
             Path.Combine("prompts", "personas", "music-biz-specialist.md"),
             Path.Combine("prompts", "flows", "intake.md"),
             Path.Combine("prompts", "flows", "refine.md"),
+            Path.Combine("prompts", "flows", "refine-tech.md"),
             Path.Combine("prompts", "flows", "sprint-planning.md"),
             Path.Combine("prompts", "flows", "review.md")
         };
@@ -108,7 +121,7 @@ public class RefineTechFlowTests
         {
             Backlog = new List<BacklogItem>
             {
-                new BacklogItem { Id = 1, Title = "Test" }
+                new BacklogItem { Id = 1, Title = "Test", Status = "candidate", EpicId = "epic-1" }
             }
         };
 
@@ -117,6 +130,25 @@ public class RefineTechFlowTests
 
         _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Path.Combine(_testWorkdir, "state", "runs", "test-run"));
+
+        _epicStoreMock.Setup(s => s.ResolveAppId(It.IsAny<string>(), "epic-1"))
+            .Returns("test-app");
+
+        var patchPreview = new PatchPreviewData
+        {
+            ComputedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            ItemId = 1,
+            Changes = new List<PatchFileChange>()
+        };
+
+        _patchPreviewServiceMock.Setup(s => s.ComputePatchPreview(It.IsAny<string>(), 1, It.IsAny<string>()))
+            .Returns(patchPreview);
+
+        _patchPreviewServiceMock.Setup(s => s.FormatDiffLines(It.IsAny<PatchPreviewData>()))
+            .Returns(new List<string>());
+
+        _planStoreMock.Setup(s => s.GetPlanPath(It.IsAny<string>(), 1))
+            .Returns(Path.Combine(_testWorkdir, "state", "plans", "item-1", "implementation.plan.json"));
 
         // Act
         var exitCode = _flow.Execute(_testWorkdir, 1, false, false);
@@ -164,7 +196,7 @@ public class RefineTechFlowTests
         {
             Backlog = new List<BacklogItem>
             {
-                new BacklogItem { Id = 1, Title = "Test", Status = "candidate" }
+                new BacklogItem { Id = 1, Title = "Test", Status = "candidate", EpicId = "epic-1" }
             }
         };
 
@@ -173,6 +205,25 @@ public class RefineTechFlowTests
 
         _runArtifactStoreMock.Setup(s => s.CreateRunFolder(It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Path.Combine(_testWorkdir, "state", "runs", "test-run"));
+
+        _epicStoreMock.Setup(s => s.ResolveAppId(It.IsAny<string>(), "epic-1"))
+            .Returns("test-app");
+
+        var patchPreview = new PatchPreviewData
+        {
+            ComputedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            ItemId = 1,
+            Changes = new List<PatchFileChange>()
+        };
+
+        _patchPreviewServiceMock.Setup(s => s.ComputePatchPreview(It.IsAny<string>(), 1, It.IsAny<string>()))
+            .Returns(patchPreview);
+
+        _patchPreviewServiceMock.Setup(s => s.FormatDiffLines(It.IsAny<PatchPreviewData>()))
+            .Returns(new List<string>());
+
+        _planStoreMock.Setup(s => s.GetPlanPath(It.IsAny<string>(), 1))
+            .Returns(Path.Combine(_testWorkdir, "state", "plans", "item-1", "implementation.plan.json"));
 
         // Act
         var exitCode = _flow.Execute(_testWorkdir, 1, false, approve: true);

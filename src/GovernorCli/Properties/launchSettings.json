@@ -2,7 +2,7 @@
   "profiles": {
     "GovernorCli": {
       "commandName": "Project",
-      "commandLineArgs": "deliver --item 999",
+      "commandLineArgs": "deliver --item 1001",
       "workingDirectory": "C:\\Users\\jgron\\Repos\\agentic-scrum-governor"
     }
   }

@@ -53,8 +53,8 @@ public sealed class BacklogItem
     [JsonPropertyName("epic_id")]
     public string? EpicId { get; set; }
 
-    [JsonPropertyName("delivery_template_id")]
-    public string? DeliveryTemplateId { get; set; }
+    [JsonPropertyName("implementation_plan_ref")]
+    public string? ImplementationPlanRef { get; set; }
 }
 
 public sealed class BacklogEstimate

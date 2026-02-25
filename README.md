@@ -8,7 +8,7 @@ The Agentic SCRUM Governor provides a structured CLI for transforming raw ideas 
 
 1. **Intake** - Capture raw ideas as backlog items
 2. **Refine** - Business refinement (acceptance criteria, priorities)
-3. **Refine-Tech** - Technical readiness review (estimates, architecture)
+3. **Refine-Tech** - Technical readiness review (estimates, implementation plans)
 4. **Deliver** - Generate, validate, and deploy candidate implementations
 5. **Done** - Track completed work with decision audit trail
 
@@ -45,8 +45,11 @@ governor intake --title "Feature X" --story "As a user, I want..."
 # Refine business requirements
 governor refine --item 1
 
-# Technical readiness review
+# Technical readiness review (preview)
 governor refine-tech --item 1
+
+# Approve technical plan
+governor refine-tech --item 1 --approve
 
 # Generate and validate candidate implementation
 governor deliver --item 1
@@ -55,13 +58,66 @@ governor deliver --item 1
 governor deliver --item 1 --approve
 ```
 
+## Phase 2: Refine-Tech ✅
+
+The refine-tech flow generates **deterministic, machine-readable implementation plans** with strict governance semantics:
+
+### Key Features
+
+**Preview Before Apply**
+- Default: Read-only preview (no `--approve` required)
+- Artifacts generated in `state/runs/{runId}/`
+- Backlog remains untouched until explicit approval
+
+**Explicit Approval**
+- Required flag: `--approve` to mutate backlog and persist plans
+- Validation runs before persistence (fail-fast on invalid data)
+- Only successful runs append to decision log
+
+**Append-Only Decision Log**
+- Format: `TIMESTAMP | refine-tech approved | item=X | run=Y | by=ACTOR`
+- Location: `state/decisions/decision.log`
+- Immutable audit trail of all approvals
+
+**Typed Implementation Plans**
+- Complete technical design artifacts (JSON)
+- Stack info, project layout, build/run steps, validation checks
+- Deterministic, reproducible plans (no random IDs)
+
+### Usage
+
+```bash
+# Step 1: Preview (read-only, safe to rerun)
+$ governor refine-tech --item 1000
+✓ Preview written to state/runs/{timestamp}_refine-tech_item-1000/
+
+# Step 2: Review artifacts
+$ cat state/runs/*/implementation.plan.json
+$ cat state/runs/*/patch.preview.diff
+
+# Step 3: Approve (updates backlog + decision log)
+$ governor refine-tech --item 1000 --approve
+✓ Plan persisted to state/plans/item-1000/
+✓ Backlog updated (status → ready_for_dev)
+✓ Decision logged
+```
+
+For detailed Phase 2 documentation, see [PHASE2.md](PHASE2.md).
+
 ## Phases
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅
 Repository structure, CLI scaffolding, backlog YAML, state management.
 
-### Phase 2: Refine & Refine-Tech
-Business and technical refinement flows with LLM-driven estimation and architecture review.
+### Phase 2: Refine-Tech ✅
+Technical readiness review with:
+- Deterministic implementation plan generation
+- Typed artifacts (no anonymous objects)
+- Preview-before-apply governance
+- Explicit approval gating
+- Append-only decision logging
+
+See [PHASE2.md](PHASE2.md) for complete Phase 2 details and documentation index.
 
 ### Phase 3: Deliver Engine ✅
 Complete delivery mechanism with:
@@ -204,7 +260,20 @@ dotnet test --verbosity detailed
 
 ## Documentation
 
+### Phase 2: Refine-Tech
+- **[PHASE2.md](PHASE2.md)** - Complete Phase 2 documentation with navigation index
+  - [PHASE2_SUMMARY.md](PHASE2_SUMMARY.md) - Executive overview
+  - [PHASE2_USAGE.md](PHASE2_USAGE.md) - User guide with examples
+  - [PHASE2_QUICK_REFERENCE.md](PHASE2_QUICK_REFERENCE.md) - Developer quick reference
+  - [PHASE2_TESTING.md](PHASE2_TESTING.md) - Testing strategies
+  - [PHASE2_ARCHITECTURE.md](PHASE2_ARCHITECTURE.md) - Architecture details
+  - [PHASE2_IMPLEMENTATION.md](PHASE2_IMPLEMENTATION.md) - Implementation specifics
+  - [PHASE2_CHECKLIST.md](PHASE2_CHECKLIST.md) - Quality assurance checklist
+
+### Core Architecture
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design, layer responsibilities, patterns
+
+### Phase 3: Deliver Engine
 - **[docs/phase-3-delivery-engine/IMPLEMENTATION.md](docs/phase-3-delivery-engine/IMPLEMENTATION.md)** - Deliver engine architecture
 - **[docs/phase-3-delivery-engine/API_CONTRACT.md](docs/phase-3-delivery-engine/API_CONTRACT.md)** - Types, contracts, preconditions
 - **[docs/phase-3-delivery-engine/QUICK_REFERENCE.md](docs/phase-3-delivery-engine/QUICK_REFERENCE.md)** - Usage guide
@@ -227,11 +296,12 @@ Follow the existing patterns:
 ## Status
 
 - ✅ Phase 1: Foundation
-- ✅ Phase 2: Refine & Refine-Tech
+- ✅ Phase 2: Refine-Tech (MVP complete)
 - ✅ Phase 3: Deliver Engine (MVP complete)
 
-**Next:** Phase 4 - Real template generator, enhanced validation
+**Next:** Enhanced validation, LLM-assisted plan generation, app type auto-detection
 
 ---
 
-**For detailed architecture and Phase 3 implementation, see [docs/](docs/) directory.**
+**For Phase 2 documentation and detailed guides, see [PHASE2.md](PHASE2.md).**
+**For core architecture and Phase 3 implementation, see [docs/](docs/) directory.**

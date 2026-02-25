@@ -6,7 +6,7 @@ namespace GovernorCli.Application.Models.Deliver;
 /// Represents the implementation plan for a delivery run.
 /// Deterministic artifact describing what will be generated.
 /// </summary>
-public class ImplementationPlan
+public class DeliveryImplementationPlan
 {
     [JsonPropertyName("run_id")]
     public string RunId { get; set; } = "";
@@ -148,7 +148,7 @@ public class PatchApplied
 /// </summary>
 public class DeliverResult
 {
-    public ImplementationPlan Plan { get; set; } = new();
+    public DeliveryImplementationPlan Plan { get; set; } = new();
     public ValidationReport Validation { get; set; } = new();
     public DeliverPatchPreview Preview { get; set; } = new();
     public PatchApplied? PatchApplied { get; set; }

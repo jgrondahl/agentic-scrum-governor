@@ -74,6 +74,7 @@ public class DeliverFlowTests
             "state",
             Path.Combine("state", "decisions"),
             Path.Combine("state", "runs"),
+            Path.Combine("state", "plans"),
             "apps",
             "prompts",
             Path.Combine("prompts", "personas"),
@@ -100,6 +101,7 @@ public class DeliverFlowTests
             Path.Combine("prompts", "personas", "music-biz-specialist.md"),
             Path.Combine("prompts", "flows", "intake.md"),
             Path.Combine("prompts", "flows", "refine.md"),
+            Path.Combine("prompts", "flows", "refine-tech.md"),
             Path.Combine("prompts", "flows", "sprint-planning.md"),
             Path.Combine("prompts", "flows", "review.md")
         };
@@ -110,6 +112,11 @@ public class DeliverFlowTests
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             File.WriteAllText(filePath, "# Test file\n");
         }
+
+        // Create plan file for delivery tests
+        var planDir = Path.Combine(testDir, "state", "plans", "item-1");
+        Directory.CreateDirectory(planDir);
+        File.WriteAllText(Path.Combine(planDir, "implementation.plan.json"), "{}");
     }
 
     [Test]
@@ -140,7 +147,7 @@ public class DeliverFlowTests
                     Title = "Test", 
                     Status = "ready_for_dev",
                     EpicId = "epic-1",
-                    DeliveryTemplateId = "fixture_dotnet_console_hello",
+                    ImplementationPlanRef = "state/plans/item-1/implementation.plan.json",
                     Estimate = new BacklogEstimate { StoryPoints = 5 }
                 }
             }
@@ -197,7 +204,7 @@ public class DeliverFlowTests
                     Title = "Test", 
                     Status = "ready_for_dev",
                     EpicId = "epic-1",
-                    DeliveryTemplateId = "fixture_dotnet_console_hello",
+                    ImplementationPlanRef = "state/plans/item-1/implementation.plan.json",
                     Estimate = new BacklogEstimate { StoryPoints = 5 }
                 }
             }

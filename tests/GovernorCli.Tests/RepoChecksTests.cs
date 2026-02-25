@@ -290,6 +290,7 @@ public class RepoChecksTests
             "state",
             Path.Combine("state", "decisions"),
             Path.Combine("state", "runs"),
+            Path.Combine("state", "plans"),
             "apps",
             "prompts",
             Path.Combine("prompts", "personas"),
@@ -316,6 +317,7 @@ public class RepoChecksTests
             Path.Combine("prompts", "personas", "music-biz-specialist.md"),
             Path.Combine("prompts", "flows", "intake.md"),
             Path.Combine("prompts", "flows", "refine.md"),
+            Path.Combine("prompts", "flows", "refine-tech.md"),
             Path.Combine("prompts", "flows", "sprint-planning.md"),
             Path.Combine("prompts", "flows", "review.md")
         };

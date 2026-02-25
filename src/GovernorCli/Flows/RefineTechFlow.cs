@@ -21,7 +21,15 @@ public class RefineTechFlow
     /// Orchestrates: validation, useCase invocation, decision logging.
     /// Returns: Exit code for CLI.
     /// </summary>
-    public FlowExitCode Execute(string workdir, int itemId, bool verbose, bool approve)
+    public FlowExitCode Execute(
+        string workdir, 
+        int itemId, 
+        bool verbose, 
+        bool approve,
+        bool useSameModel = false,
+        string? modelSad = null,
+        string? modelSasd = null,
+        string? modelQa = null)
     {
         try
         {
@@ -47,7 +55,11 @@ public class RefineTechFlow
                 RunsDir = runsDir,
                 Workdir = workdir,
                 RunId = runId,
-                Approve = approve
+                Approve = approve,
+                UseSameModel = useSameModel,
+                ModelSad = modelSad,
+                ModelSasd = modelSasd,
+                ModelQa = modelQa
             };
 
             var result = _useCase.Process(request);

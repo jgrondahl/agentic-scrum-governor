@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Spectre.Console;
-using System.CommandLine;
-using GovernorCli.Application.Stores;
+﻿using GovernorCli.Application.Stores;
 using GovernorCli.Application.UseCases;
 using GovernorCli.Infrastructure.Stores;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
+using System.CommandLine;
 
 namespace GovernorCli;
 
@@ -17,6 +17,8 @@ internal static class Program
         services.AddSingleton<IRunArtifactStore, RunArtifactStore>();
         services.AddSingleton<IDecisionStore, DecisionStore>();
         services.AddSingleton<IEpicStore, EpicStore>();
+        services.AddSingleton<IPlanStore, PlanStore>();
+        services.AddSingleton<IPatchPreviewService, PatchPreviewService>();
         services.AddSingleton<IWorkspaceStore, WorkspaceStore>();
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddSingleton<IAppDeployer, AppDeployer>();
@@ -292,9 +294,33 @@ internal static class Program
             Description = "Approve and apply the proposed tech-refinement patch to state/backlog.yaml."
         };
 
+        var sameModelOption = new Option<bool>(name: "--same-model")
+        {
+            Description = "Use the same LLM model for all personas (default: uses per-persona config from .env)."
+        };
+
+        var modelSadOption = new Option<string>(name: "--model-sad")
+        {
+            Description = "LLM model to use for Senior Architect Developer persona."
+        };
+
+        var modelSasdOption = new Option<string>(name: "--model-sasd")
+        {
+            Description = "LLM model to use for Senior Audio Systems Developer persona."
+        };
+
+        var modelQaOption = new Option<string>(name: "--model-qa")
+        {
+            Description = "LLM model to use for QA Engineer persona."
+        };
+
         var cmd = new Command("refine-tech", "Run technical refinement & readiness flow for a backlog item.");
         cmd.Options.Add(itemIdOption);
         cmd.Options.Add(approveOption);
+        cmd.Options.Add(sameModelOption);
+        cmd.Options.Add(modelSadOption);
+        cmd.Options.Add(modelSasdOption);
+        cmd.Options.Add(modelQaOption);
 
         cmd.SetAction(parseResult =>
         {
@@ -302,10 +328,14 @@ internal static class Program
             var verbose = parseResult.GetValue(verboseOption);
             var itemId = parseResult.GetValue(itemIdOption);
             var approve = parseResult.GetValue(approveOption);
+            var sameModel = parseResult.GetValue(sameModelOption);
+            var modelSad = parseResult.GetValue(modelSadOption);
+            var modelSasd = parseResult.GetValue(modelSasdOption);
+            var modelQa = parseResult.GetValue(modelQaOption);
 
             // Resolve flow from DI container
             var flow = provider.GetRequiredService<Flows.RefineTechFlow>();
-            var exitCode = flow.Execute(workdir, itemId, verbose, approve);
+            var exitCode = flow.Execute(workdir, itemId, verbose, approve, sameModel, modelSad, modelSasd, modelQa);
 
             if (exitCode == Domain.Enums.FlowExitCode.Success)
             {
@@ -377,7 +407,7 @@ internal static class Program
             else if (exitCode == Domain.Enums.FlowExitCode.BacklogParseError)
                 AnsiConsole.MarkupLine("[red]✗ FAIL[/] Could not parse state/backlog.yaml");
             else if (exitCode == Domain.Enums.FlowExitCode.PreconditionFailed)
-                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Item does not meet preconditions (status != ready_for_dev, no estimate, no epic_id, no delivery_template_id).");
+                AnsiConsole.MarkupLine("[red]✗ FAIL[/] Item does not meet preconditions. Run 'governor refine-tech --item X --approve' first to generate the implementation plan.");
             else if (exitCode == Domain.Enums.FlowExitCode.ValidationFailed)
                 AnsiConsole.MarkupLine("[red]✗ FAIL[/] Validation failed. See state/runs/ for details. Fix and retry.");
             else if (exitCode == Domain.Enums.FlowExitCode.ApplyFailed)
@@ -420,6 +450,7 @@ public static class RepoChecks
             Path.Combine("prompts", "flows"),
             Path.Combine("state", "decisions"),
             Path.Combine("state", "runs"),
+            Path.Combine("state", "plans"),
             "apps"
         };
 
@@ -448,6 +479,7 @@ public static class RepoChecks
         RequireDir(workdir, Path.Combine("prompts", "flows"), problems);
         RequireDir(workdir, Path.Combine("state", "decisions"), problems);
         RequireDir(workdir, Path.Combine("state", "runs"), problems);
+        RequireDir(workdir, Path.Combine("state", "plans"), problems);
         RequireDir(workdir, "apps", problems);
 
         // Required state files

@@ -54,8 +54,23 @@ public sealed class StubLanguageModelProvider : ILanguageModelProvider
 
             "SAD" => new
             {
+                storyPoints = 3,
+                confidence = "medium",
+                complexityDrivers = new[] { "Clean Architecture patterns", "Multi-agent coordination" },
+                assumptions = new[] { "CLI drives workflow; state stored in repo" },
+                dependencies = new[] { "LLM API access" },
+                rationale = "Standard implementation with clear separation of concerns.",
+                appType = "web_blazor",
+                language = "csharp",
+                runtime = "net8.0",
+                framework = "blazor",
+                projects = new[]
+                {
+                    new { name = "JeremyRavine.Web", type = "web", path = "src/JeremyRavine.Web/JeremyRavine.Web.csproj", dependencies = new[] { "JeremyRavine.Core" } },
+                    new { name = "JeremyRavine.Core", type = "library", path = "src/JeremyRavine.Core/JeremyRavine.Core.csproj", dependencies = new string[] { } },
+                    new { name = "JeremyRavine.Tests", type = "test", path = "tests/JeremyRavine.Tests/JeremyRavine.Tests.csproj", dependencies = new[] { "JeremyRavine.Core" } }
+                },
                 risks = new[] { "Boundary drift risk if outputs remain unstructured (stub)." },
-                assumptions = new[] { "CLI drives workflow; state stored in repo (stub)." },
                 recommendations = new[] { "Keep flows pure and push IO to adapters (stub)." },
                 architectureChanges = new[] { "Add contract validation + retry gate (stub)." },
                 interfaceNotes = new[] { "LanguageModel provider remains a port; vendor adapters later (stub)." },

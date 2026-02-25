@@ -1,6 +1,5 @@
 backlog:
 - id: 1
-  epic_id: 1
   title: 'PLACEHOLDER: Define product concept'
   status: ready
   priority: 1
@@ -45,40 +44,42 @@ backlog:
   - Clarify exclusion of any user persona development tasks.
   dependencies: []
   risks: []
+  epic_id: 1
+  implementation_plan_ref: 
 - id: 2
+  title: My music tool idea
+  status: candidate
+  priority: 1
+  size: S
+  owner: PO
+  estimate:
+    id: EST-<runId>-<itemId>
+    story_points: 8
+    scale: fibonacci
+    confidence: medium
+    risk_level: high
+    complexity_drivers:
+    - FFT-based analysis accuracy
+    - Transient detection under varied BPM
+    assumptions:
+    - Offline processing only for MVP
+    dependencies:
+    - libsndfile
+    non_goals:
+    - Real-time plugin support
+    notes: >
+      Estimation assumes batch processing and no DAW integration.
+    created_at_utc: 2026-02-01T21:25:57Z
+    created_from_run_id: <runId>
+  technical_notes_ref: 
+  story: A desktop utility that...
+  acceptance_criteria: []
+  non_goals: []
+  dependencies: []
+  risks: []
   epic_id: 2
-  title: My music tool idea
-  status: candidate
-  priority: 1
-  size: S
-  owner: PO
-  estimate:
-    id: EST-<runId>-<itemId>
-    story_points: 8
-    scale: fibonacci
-    confidence: medium
-    risk_level: high
-    complexity_drivers:
-    - FFT-based analysis accuracy
-    - Transient detection under varied BPM
-    assumptions:
-    - Offline processing only for MVP
-    dependencies:
-    - libsndfile
-    non_goals:
-    - Real-time plugin support
-    notes: >
-      Estimation assumes batch processing and no DAW integration.
-    created_at_utc: 2026-02-01T21:25:57Z
-    created_from_run_id: <runId>
-  technical_notes_ref: 
-  story: A desktop utility that...
-  acceptance_criteria: []
-  non_goals: []
-  dependencies: []
-  risks: []
+  implementation_plan_ref: 
 - id: 3
-  epic_id: 3
   title: My music tool idea
   status: candidate
   priority: 1
@@ -109,8 +110,9 @@ backlog:
   non_goals: []
   dependencies: []
   risks: []
+  epic_id: 3
+  implementation_plan_ref: 
 - id: 4
-  epic_id: 12
   title: Reference Track Comparison Tool
   status: ready_for_dev
   priority: 2
@@ -142,18 +144,93 @@ backlog:
   - The tool will not store any uploaded tracks permanently.
   dependencies: []
   risks: []
+  epic_id: 12
+  implementation_plan_ref: 
 - id: 999
   title: Deliver Engine Smoke Test
   status: ready_for_dev
   priority: 1
   size: S
   owner: DEV
-  epic_id: 888
-  delivery_template_id: fixture_dotnet_console_hello
-  story: Smoke test for Phase 3 deliver flow.
   estimate:
+    id: ''
     story_points: 1
+    scale: fibonacci
+    confidence: medium
+    risk_level: medium
+    complexity_drivers: []
+    assumptions: []
+    dependencies: []
+    non_goals: []
+    notes: ''
+    created_at_utc: ''
+    created_from_run_id: ''
+  technical_notes_ref: 
+  story: Smoke test for Phase 3 deliver flow.
   acceptance_criteria: []
   non_goals: []
   dependencies: []
   risks: []
+  epic_id: 888
+  implementation_plan_ref: 
+- id: 1000
+  title: 'E2E Smoke Test: Hello Jeremy App'
+  status: ready_for_dev
+  priority: 1
+  size: S
+  owner: PO
+  estimate:
+    id: EST-20260223_033310_refine-tech_item-1000-1000
+    story_points: 5
+    scale: fibonacci
+    confidence: medium
+    risk_level: medium
+    complexity_drivers:
+    - 'Placeholder: replace with real drivers during TRR.'
+    assumptions:
+    - 'Placeholder: list assumptions during TRR.'
+    dependencies: []
+    non_goals: []
+    notes: Placeholder estimate produced by refine-tech skeleton.
+    created_at_utc: 2026-02-23T03:33:10.5168804+00:00
+    created_from_run_id: 20260223_033310_refine-tech_item-1000
+  technical_notes_ref: runs/20260223_033310_refine-tech_item-1000/
+  story: Create a console app that prints 'Hello Jeremy' when run.
+  acceptance_criteria:
+  - Add at least one measurable output condition (stub).
+  non_goals:
+  - Explicitly exclude integrations in MVP (stub).
+  dependencies: []
+  risks: []
+  epic_id: EP-1000
+  implementation_plan_ref: 
+- id: 1001
+  title: Artist Website – Jeremy Ravine
+  status: ready_for_dev
+  priority: 1
+  size: S
+  owner: PO
+  estimate:
+    id: EST-20260225_043031_refine-tech_item-1001-1001-CONSENSUS
+    story_points: 3
+    scale: fibonacci
+    confidence: medium
+    risk_level: medium
+    complexity_drivers:
+    - Standard implementation with clear separation of concerns.
+    assumptions: []
+    dependencies: []
+    non_goals: []
+    notes: 'Consensus from 2 iteration(s). Converged: True'
+    created_at_utc: 2026-02-25T04:30:31.7041856+00:00
+    created_from_run_id: 20260225_043031_refine-tech_item-1001
+  technical_notes_ref: runs/20260225_043031_refine-tech_item-1001/
+  story: As a user I want a modern Music Industry standard website for artist 'Jeremy Ravine' so that I can showcase his music and social media.
+  acceptance_criteria:
+  - Add at least one measurable output condition (stub).
+  non_goals:
+  - Explicitly exclude integrations in MVP (stub).
+  dependencies: []
+  risks: []
+  epic_id: EP-1001
+  implementation_plan_ref: C:\Users\jgron\Repos\agentic-scrum-governor\state\plans\item-1001\implementation.plan.json

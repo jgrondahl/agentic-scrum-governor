@@ -5,3 +5,9 @@ epics:
     status: active 
   - id: 888
     app_id: smoke-app
+  - id: EP-1000
+    app_id: hello-jeremy
+  - id: EP-1001
+    title: Artist Website – Jeremy Ravine
+    app_id: jeremy-ravine-website
+    status: active
